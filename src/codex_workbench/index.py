@@ -1,0 +1,588 @@
+from __future__ import annotations
+
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Any
+
+import yaml
+from pydantic import ValidationError
+
+from .io import read_text_utf8, write_text_utf8_atomic
+from .models import ArchiveManifestState
+from .workspace import resolve_workspace_path
+
+
+INDEX_PATH = "docs/generated/index.md"
+RECOVERY_PATH = "docs/generated/recovery.md"
+RECOVERY_TASK_LIMIT = 5
+RECOVERY_REQUIREMENT_LIMIT = 5
+RECOVERY_EVIDENCE_LIMIT = 5
+RECOVERY_CONFLICT_LIMIT = 5
+REDACT_MARKERS = ("token=", "password=", "secret=", "api_key=", "apikey=")
+
+
+@dataclass(frozen=True)
+class IndexWriteResult:
+    paths: tuple[Path, ...]
+    dry_run: bool
+    index_text: str
+    recovery_text: str
+    conflicts: list[str]
+
+
+@dataclass(frozen=True)
+class IndexCheckResult:
+    clean: bool
+    status: str
+    messages: list[str]
+    conflicts: list[str]
+
+
+@dataclass(frozen=True)
+class _YamlRecord:
+    kind: str
+    path: Path
+    relative_path: str
+    data: dict[str, Any] | None
+    error: str | None = None
+
+    @property
+    def id(self) -> str:
+        if not self.data:
+            return ""
+        value = self.data.get("id", "")
+        return str(value).strip() if value is not None else ""
+
+    @property
+    def title(self) -> str:
+        if not self.data:
+            return ""
+        value = self.data.get("title", "")
+        return str(value).strip() if value is not None else ""
+
+
+@dataclass(frozen=True)
+class _IndexSnapshot:
+    requirements: list[_YamlRecord]
+    tasks: list[_YamlRecord]
+    evidences: list[_YamlRecord]
+    archives: list[_YamlRecord]
+    materials: list[dict[str, Any]]
+    discoveries: list[_YamlRecord]
+    services: list[dict[str, Any]]
+    actions: list[_YamlRecord]
+    changes: list[_YamlRecord]
+    decisions: list[_YamlRecord]
+    suspicions: list[_YamlRecord]
+    conflicts: list[str]
+
+
+def generate_index_views(
+    workspace_root: str | Path,
+    *,
+    dry_run: bool = False,
+) -> IndexWriteResult:
+    root = Path(workspace_root).expanduser().resolve()
+    snapshot = _collect_snapshot(root)
+    index_text = _render_index(snapshot)
+    recovery_text = _render_recovery(snapshot)
+    index_path = resolve_workspace_path(root, INDEX_PATH)
+    recovery_path = resolve_workspace_path(root, RECOVERY_PATH)
+
+    if not dry_run:
+        write_text_utf8_atomic(index_path, index_text)
+        write_text_utf8_atomic(recovery_path, recovery_text)
+
+    return IndexWriteResult(
+        paths=(index_path, recovery_path),
+        dry_run=dry_run,
+        index_text=index_text,
+        recovery_text=recovery_text,
+        conflicts=snapshot.conflicts,
+    )
+
+
+def check_generated_views(workspace_root: str | Path) -> IndexCheckResult:
+    root = Path(workspace_root).expanduser().resolve()
+    expected = generate_index_views(root, dry_run=True)
+    messages: list[str] = []
+    for relative_path, expected_text in (
+        (INDEX_PATH, expected.index_text),
+        (RECOVERY_PATH, expected.recovery_text),
+    ):
+        path = resolve_workspace_path(root, relative_path)
+        if not path.exists():
+            messages.append(f"missing: {relative_path}")
+            continue
+        if read_text_utf8(path) != expected_text:
+            messages.append(f"stale: {relative_path}")
+
+    messages.extend(f"conflict: {item}" for item in expected.conflicts)
+    if expected.conflicts:
+        status = "conflict"
+    elif messages:
+        status = "stale"
+    else:
+        status = "clean"
+    return IndexCheckResult(
+        clean=not messages,
+        status=status,
+        messages=messages,
+        conflicts=expected.conflicts,
+    )
+
+
+def _collect_snapshot(root: Path) -> _IndexSnapshot:
+    requirements = _read_records(root, "docs/active/*/requirement.yaml", "requirement")
+    tasks = _read_records(root, "docs/active/*/task.yaml", "task")
+    evidences = _read_records(root, "docs/active/*/evidence.yaml", "evidence")
+    archives = _read_records(root, "docs/archive/*/archive.yaml", "archive")
+    discoveries = _read_records(root, "docs/inbox/*/discovery.yaml", "discovery")
+    actions = _read_records(root, "docs/actions/*.yaml", "action")
+    changes = _read_records(root, "docs/changes/*.yaml", "change")
+    decisions = _read_records(root, "docs/decisions/*.yaml", "decision")
+    suspicions = _read_records(root, "docs/suspicions/*.yaml", "suspicion")
+    services, service_conflicts = _read_services(root)
+    materials, material_conflicts = _read_materials(root)
+
+    conflicts = [
+        *service_conflicts,
+        *material_conflicts,
+        *_record_errors(requirements),
+        *_record_errors(tasks),
+        *_record_errors(evidences),
+        *_record_errors(archives),
+        *_archive_manifest_conflicts(archives),
+        *_record_errors(discoveries),
+        *_record_errors(actions),
+        *_record_errors(changes),
+        *_record_errors(decisions),
+        *_record_errors(suspicions),
+        *_path_id_conflicts(requirements, "requirement"),
+        *_path_id_conflicts(tasks, "task"),
+        *_path_id_conflicts(discoveries, "discovery"),
+        *_file_id_conflicts(actions, "action"),
+        *_file_id_conflicts(changes, "change"),
+        *_file_id_conflicts(decisions, "decision"),
+        *_file_id_conflicts(suspicions, "suspicion"),
+        *_duplicate_id_conflicts(requirements, "requirement"),
+        *_duplicate_id_conflicts(tasks, "task"),
+        *_duplicate_id_conflicts(evidences, "evidence"),
+        *_duplicate_id_conflicts(actions, "action"),
+        *_duplicate_id_conflicts(changes, "change"),
+        *_duplicate_id_conflicts(decisions, "decision"),
+        *_duplicate_id_conflicts(suspicions, "suspicion"),
+    ]
+    conflicts.extend(_task_ref_conflicts(requirements, tasks))
+    conflicts.extend(_service_ref_conflicts(tasks, services))
+    conflicts.extend(_evidence_conflicts(tasks, evidences))
+    return _IndexSnapshot(
+        requirements=[record for record in requirements if record.data],
+        tasks=[record for record in tasks if record.data],
+        evidences=[record for record in evidences if record.data],
+        archives=[record for record in archives if record.data],
+        materials=materials,
+        discoveries=[record for record in discoveries if record.data],
+        services=services,
+        actions=[record for record in actions if record.data],
+        changes=[record for record in changes if record.data],
+        decisions=[record for record in decisions if record.data],
+        suspicions=[record for record in suspicions if record.data],
+        conflicts=sorted(dict.fromkeys(conflicts)),
+    )
+
+
+def _read_records(root: Path, pattern: str, kind: str) -> list[_YamlRecord]:
+    records: list[_YamlRecord] = []
+    for path in sorted(root.glob(pattern), key=lambda item: item.as_posix()):
+        relative_path = path.relative_to(root).as_posix()
+        try:
+            data = _load_yaml_dict(path)
+        except yaml.YAMLError:
+            records.append(_YamlRecord(kind=kind, path=path, relative_path=relative_path, data=None, error="invalid_yaml"))
+            continue
+        if data is None:
+            continue
+        if not isinstance(data, dict):
+            records.append(_YamlRecord(kind=kind, path=path, relative_path=relative_path, data=None, error="invalid_yaml"))
+            continue
+        records.append(_YamlRecord(kind=kind, path=path, relative_path=relative_path, data=data))
+    return records
+
+
+def _read_materials(root: Path) -> tuple[list[dict[str, Any]], list[str]]:
+    path = root / "docs" / "inbox" / "materials.yaml"
+    if not path.exists():
+        return [], []
+    try:
+        data = _load_yaml_dict(path)
+    except yaml.YAMLError:
+        return [], [f"invalid_yaml: {path.relative_to(root).as_posix()}"]
+    if not isinstance(data, dict):
+        return [], [f"invalid_yaml: {path.relative_to(root).as_posix()}"]
+    materials = data.get("materials", [])
+    if not isinstance(materials, list):
+        return [], [f"invalid_yaml: {path.relative_to(root).as_posix()}"]
+    return [item for item in materials if isinstance(item, dict)], []
+
+
+def _read_services(root: Path) -> tuple[list[dict[str, Any]], list[str]]:
+    path = root / "services" / "registry.yaml"
+    if not path.exists():
+        return [], [f"missing: {path.relative_to(root).as_posix()}"]
+    try:
+        data = _load_yaml_dict(path)
+    except yaml.YAMLError:
+        return [], [f"invalid_yaml: {path.relative_to(root).as_posix()}"]
+    if not isinstance(data, dict):
+        return [], [f"invalid_yaml: {path.relative_to(root).as_posix()}"]
+    services = data.get("services", [])
+    if not isinstance(services, list):
+        return [], [f"invalid_yaml: {path.relative_to(root).as_posix()}"]
+    return [item for item in services if isinstance(item, dict)], []
+
+
+def _load_yaml_dict(path: Path) -> dict[str, Any]:
+    with path.open("r", encoding="utf-8") as handle:
+        data = yaml.safe_load(handle)
+    return {} if data is None else data
+
+
+def _record_errors(records: list[_YamlRecord]) -> list[str]:
+    return [f"{record.error}: {record.relative_path}" for record in records if record.error]
+
+
+def _duplicate_id_conflicts(records: list[_YamlRecord], kind: str) -> list[str]:
+    seen: set[str] = set()
+    conflicts: list[str] = []
+    for record in records:
+        if not record.data or not record.id:
+            continue
+        if record.id in seen:
+            conflicts.append(f"duplicate_{kind}_id: {record.id}")
+        seen.add(record.id)
+    return conflicts
+
+
+def _path_id_conflicts(records: list[_YamlRecord], kind: str) -> list[str]:
+    conflicts: list[str] = []
+    for record in records:
+        if not record.data or not record.id:
+            continue
+        expected = record.path.parent.name
+        if expected != record.id:
+            conflicts.append(f"{kind}_id_mismatch: path={expected} yaml={record.id}")
+    return conflicts
+
+
+def _file_id_conflicts(records: list[_YamlRecord], kind: str) -> list[str]:
+    conflicts: list[str] = []
+    for record in records:
+        if not record.data or not record.id:
+            continue
+        expected = record.path.stem
+        if expected != record.id:
+            conflicts.append(f"{kind}_id_mismatch: path={expected} yaml={record.id}")
+    return conflicts
+
+
+def _task_ref_conflicts(requirements: list[_YamlRecord], tasks: list[_YamlRecord]) -> list[str]:
+    task_ids = {record.id for record in tasks if record.id}
+    conflicts: list[str] = []
+    for requirement in requirements:
+        if not requirement.data:
+            continue
+        task_refs = requirement.data.get("task_refs", [])
+        if not isinstance(task_refs, list):
+            continue
+        for task_ref in task_refs:
+            if str(task_ref) not in task_ids:
+                conflicts.append(f"unknown_task_ref: {requirement.id} -> {task_ref}")
+    return conflicts
+
+
+def _service_ref_conflicts(tasks: list[_YamlRecord], services: list[dict[str, Any]]) -> list[str]:
+    service_names = {str(item.get("name", "")).strip() for item in services if item.get("name")}
+    conflicts: list[str] = []
+    for task in tasks:
+        if not task.data:
+            continue
+        refs = task.data.get("service_refs", [])
+        if not isinstance(refs, list):
+            continue
+        for service_ref in refs:
+            if str(service_ref) not in service_names:
+                conflicts.append(f"unknown_service_ref: {task.id} -> {service_ref}")
+    return conflicts
+
+
+def _evidence_conflicts(tasks: list[_YamlRecord], evidences: list[_YamlRecord]) -> list[str]:
+    evidence_by_task = {
+        str(record.data.get("task_id", "")).strip(): record
+        for record in evidences
+        if record.data and record.data.get("task_id")
+    }
+    evidence_ids = {record.id for record in evidences if record.id}
+    conflicts: list[str] = []
+    for evidence in evidences:
+        if not evidence.data:
+            continue
+        task_id = str(evidence.data.get("task_id", "")).strip()
+        task_dir_id = evidence.path.parent.name
+        if task_id and task_id != task_dir_id:
+            conflicts.append(f"evidence_task_mismatch: {evidence.id} -> {task_id}")
+    for task in tasks:
+        if not task.data:
+            continue
+        validation = task.data.get("validation", {})
+        if not isinstance(validation, dict):
+            continue
+        evidence_ref = validation.get("evidence_ref")
+        if evidence_ref and str(evidence_ref) not in evidence_ids:
+            conflicts.append(f"missing_evidence_ref: {task.id} -> {evidence_ref}")
+        if evidence_ref and task.id not in evidence_by_task:
+            conflicts.append(f"missing_task_evidence: {task.id} -> {evidence_ref}")
+    return conflicts
+
+
+def _archive_manifest_conflicts(archives: list[_YamlRecord]) -> list[str]:
+    conflicts: list[str] = []
+    for archive in archives:
+        if not archive.data:
+            continue
+        try:
+            ArchiveManifestState.model_validate(archive.data)
+        except ValidationError:
+            conflicts.append(f"invalid_archive_manifest: {archive.relative_path}")
+    return conflicts
+
+
+def _render_index(snapshot: _IndexSnapshot) -> str:
+    lines = [
+        "# Active Index",
+        "",
+        "> generated view; YAML remains the source of truth.",
+        "",
+        "## Requirements",
+        "",
+    ]
+    lines.extend(_requirement_lines(snapshot.requirements))
+    lines.extend(["", "## Tasks", ""])
+    lines.extend(_task_lines(snapshot.tasks))
+    lines.extend(["", "## Services", ""])
+    lines.extend(_service_lines(snapshot.services))
+    lines.extend(["", "## Materials", ""])
+    lines.extend(_material_lines(snapshot.materials))
+    lines.extend(["", "## Discovery", ""])
+    lines.extend(_record_lines(snapshot.discoveries, include_title=True))
+    lines.extend(["", "## Evidence", ""])
+    lines.extend(_evidence_lines(snapshot.evidences))
+    lines.extend(["", "## Archive", ""])
+    lines.extend(_archive_lines(snapshot.archives))
+    lines.extend(["", "## Actions", ""])
+    lines.extend(_record_lines(snapshot.actions, include_title=True))
+    lines.extend(["", "## Changes", ""])
+    lines.extend(_record_lines(snapshot.changes, include_title=True))
+    lines.extend(["", "## Decisions", ""])
+    lines.extend(_record_lines(snapshot.decisions, include_title=True))
+    lines.extend(["", "## Suspicions", ""])
+    lines.extend(_record_lines(snapshot.suspicions, include_title=True))
+    lines.extend(["", "## Conflict Report", ""])
+    lines.extend(_conflict_lines(snapshot.conflicts))
+    return _final_newline(lines)
+
+
+def _render_recovery(snapshot: _IndexSnapshot) -> str:
+    lines = [
+        "# Recovery",
+        "",
+        "> short generated view; open package YAML for source facts.",
+        "",
+        "## Recovery",
+        "",
+    ]
+    active_tasks = [
+        task
+        for task in snapshot.tasks
+        if str(task.data.get("stage", "") if task.data else "") not in {"done", "obsolete"}
+    ]
+    if active_tasks:
+        active_tasks = sorted(active_tasks, key=lambda item: item.id)
+        for task in active_tasks[:RECOVERY_TASK_LIMIT]:
+            stage = task.data.get("stage", "unknown") if task.data else "unknown"
+            services = ", ".join(str(item) for item in task.data.get("service_refs", [])) if task.data else ""
+            next_step = str(task.data.get("next_step", "")).strip() if task.data else ""
+            suffix_parts = []
+            if services:
+                suffix_parts.append(f"service_refs={services}")
+            if next_step:
+                suffix_parts.append(f"next={next_step}")
+            suffix = f" {'; '.join(suffix_parts)}" if suffix_parts else ""
+            lines.append(f"- task `{task.id}` {task.title} [{stage}]{suffix}")
+        remaining = len(active_tasks) - RECOVERY_TASK_LIMIT
+        if remaining > 0:
+            lines.append(f"- and {remaining} more active tasks")
+    else:
+        lines.append("- no active tasks")
+    lines.extend(["", "## Requirements", ""])
+    if snapshot.requirements:
+        requirements = sorted(snapshot.requirements, key=lambda item: item.id)
+        for requirement in requirements[:RECOVERY_REQUIREMENT_LIMIT]:
+            lines.append(f"- `{requirement.id}` {requirement.title}")
+        remaining = len(requirements) - RECOVERY_REQUIREMENT_LIMIT
+        if remaining > 0:
+            lines.append(f"- and {remaining} more requirements")
+    else:
+        lines.append("- none")
+    lines.extend(["", "## Latest Evidence", ""])
+    if snapshot.evidences:
+        evidences = sorted(snapshot.evidences, key=lambda item: item.id)
+        for evidence in evidences[:RECOVERY_EVIDENCE_LIMIT]:
+            task_id = evidence.data.get("task_id", "unknown") if evidence.data else "unknown"
+            conclusion = evidence.data.get("conclusion", "unknown") if evidence.data else "unknown"
+            lines.append(f"- `{evidence.id}` task={task_id} conclusion={conclusion}")
+        remaining = len(evidences) - RECOVERY_EVIDENCE_LIMIT
+        if remaining > 0:
+            lines.append(f"- and {remaining} more evidence records")
+    else:
+        lines.append("- none")
+    lines.extend(["", "## Conflicts", ""])
+    lines.extend(_limited_conflict_lines(snapshot.conflicts))
+    return _final_newline(lines)
+
+
+def _requirement_lines(records: list[_YamlRecord]) -> list[str]:
+    if not records:
+        return ["- none"]
+    lines: list[str] = []
+    for record in sorted(records, key=lambda item: item.id):
+        readiness = record.data.get("readiness", {}) if record.data else {}
+        status = readiness.get("status", "unknown") if isinstance(readiness, dict) else "unknown"
+        lines.append(f"- `{record.id}` {record.title} [readiness={status}]")
+    return lines
+
+
+def _task_lines(records: list[_YamlRecord]) -> list[str]:
+    if not records:
+        return ["- none"]
+    lines: list[str] = []
+    for record in sorted(records, key=lambda item: item.id):
+        stage = record.data.get("stage", "unknown") if record.data else "unknown"
+        services = record.data.get("service_refs", []) if record.data else []
+        next_step = str(record.data.get("next_step", "")).strip() if record.data else ""
+        suffix_parts = []
+        if services:
+            suffix_parts.append(f"service_refs={', '.join(str(item) for item in services)}")
+        if next_step:
+            suffix_parts.append(f"next={next_step}")
+        suffix = f" {'; '.join(suffix_parts)}" if suffix_parts else ""
+        lines.append(f"- `{record.id}` {record.title} [{stage}]{suffix}")
+    return lines
+
+
+def _service_lines(services: list[dict[str, Any]]) -> list[str]:
+    if not services:
+        return ["- none"]
+    lines: list[str] = []
+    for service in sorted(services, key=lambda item: str(item.get("name", ""))):
+        name = str(service.get("name", "")).strip()
+        purpose = str(service.get("purpose", "")).strip()
+        suffix = f" - {purpose}" if purpose else ""
+        lines.append(f"- `{name}`{suffix}")
+    return lines
+
+
+def _material_lines(materials: list[dict[str, Any]]) -> list[str]:
+    if not materials:
+        return ["- none"]
+    lines: list[str] = []
+    for material in sorted(materials, key=lambda item: str(item.get("id", ""))):
+        material_id = str(material.get("id", "")).strip()
+        title = str(material.get("title", "")).strip()
+        summary = _safe_text(str(material.get("summary", "")).strip())
+        suffix = f" - {summary}" if summary else ""
+        lines.append(f"- `{material_id}` {title}{suffix}")
+    return lines
+
+
+def _evidence_lines(records: list[_YamlRecord]) -> list[str]:
+    if not records:
+        return ["- none"]
+    lines: list[str] = []
+    for record in sorted(records, key=lambda item: item.id):
+        task_id = record.data.get("task_id", "unknown") if record.data else "unknown"
+        conclusion = record.data.get("conclusion", "unknown") if record.data else "unknown"
+        lines.append(f"- `{record.id}` task={task_id} conclusion={conclusion}")
+    return lines
+
+
+def _archive_lines(records: list[_YamlRecord]) -> list[str]:
+    if not records:
+        return ["- none"]
+    lines: list[str] = []
+    for record in sorted(records, key=lambda item: str(item.data.get("version", "")) if item.data else ""):
+        if not record.data:
+            continue
+        try:
+            ArchiveManifestState.model_validate(record.data)
+        except ValidationError:
+            continue
+        version = str(record.data.get("version", record.path.parent.name)).strip()
+        archived_at = str(record.data.get("archived_at", "unknown")).strip()
+        requirement_ids = _string_list(record.data.get("requirement_ids", []))
+        entries = record.data.get("entries", [])
+        entry_ids = []
+        if isinstance(entries, list):
+            for entry in entries:
+                if isinstance(entry, dict) and entry.get("source_id"):
+                    entry_ids.append(str(entry["source_id"]).strip())
+        requirement_text = ", ".join(requirement_ids) if requirement_ids else "none"
+        entry_text = ", ".join(entry_ids) if entry_ids else "none"
+        lines.append(
+            f"- `{version}` archived_at={archived_at} requirements={requirement_text} entries={entry_text}"
+        )
+    return lines
+
+
+def _record_lines(records: list[_YamlRecord], *, include_title: bool) -> list[str]:
+    if not records:
+        return ["- none"]
+    lines: list[str] = []
+    for record in sorted(records, key=lambda item: item.id):
+        title = f" {record.title}" if include_title and record.title else ""
+        lines.append(f"- `{record.id}`{title}")
+    return lines
+
+
+def _conflict_lines(conflicts: list[str]) -> list[str]:
+    if not conflicts:
+        return ["- none"]
+    return [f"- {item}" for item in sorted(conflicts)]
+
+
+def _limited_conflict_lines(conflicts: list[str]) -> list[str]:
+    if not conflicts:
+        return ["- none"]
+    sorted_conflicts = sorted(conflicts)
+    lines = [f"- {item}" for item in sorted_conflicts[:RECOVERY_CONFLICT_LIMIT]]
+    remaining = len(sorted_conflicts) - RECOVERY_CONFLICT_LIMIT
+    if remaining > 0:
+        lines.append(f"- and {remaining} more conflicts")
+    return lines
+
+
+def _safe_text(value: str) -> str:
+    lowered = value.lower()
+    if any(marker in lowered for marker in REDACT_MARKERS):
+        return "[redacted]"
+    return value
+
+
+def _string_list(value: object) -> list[str]:
+    if not isinstance(value, list):
+        return []
+    return [str(item).strip() for item in value if str(item).strip()]
+
+
+def _final_newline(lines: list[str]) -> str:
+    return "\n".join(lines).rstrip() + "\n"

@@ -1,0 +1,3 @@
+schema_version: '0.1'
+services: []
+notes: 仅为基线种子。真实服务登记由后续 Workbench 命令或用户明确操作加入。

@@ -1,0 +1,105 @@
+from __future__ import annotations
+
+from pathlib import Path
+
+import pytest
+
+from codex_workbench.errors import ErrorCode, WorkbenchError
+from codex_workbench.io import (
+    read_text_utf8,
+    read_yaml,
+    write_text_utf8_atomic,
+    write_yaml_atomic,
+)
+
+
+def test_atomic_text_write_round_trips_utf8(tmp_path: Path) -> None:
+    target = tmp_path / "CURRENT.md"
+
+    result = write_text_utf8_atomic(target, "role: 入口卡\n")
+
+    assert result.path == target
+    assert result.changed is True
+    assert result.dry_run is False
+    assert read_text_utf8(target) == "role: 入口卡\n"
+
+
+def test_dry_run_text_write_does_not_create_file(tmp_path: Path) -> None:
+    target = tmp_path / "missing.md"
+
+    result = write_text_utf8_atomic(target, "content\n", dry_run=True)
+
+    assert result.path == target
+    assert result.changed is False
+    assert result.dry_run is True
+    assert not target.exists()
+
+
+def test_dry_run_text_write_does_not_replace_existing_file(tmp_path: Path) -> None:
+    target = tmp_path / "CURRENT.md"
+    target.write_text("old\n", encoding="utf-8")
+
+    write_text_utf8_atomic(target, "new\n", dry_run=True)
+
+    assert target.read_text(encoding="utf-8") == "old\n"
+
+
+def test_dry_run_yaml_write_does_not_create_file(tmp_path: Path) -> None:
+    target = tmp_path / "services" / "registry.yaml"
+
+    result = write_yaml_atomic(target, {"services": []}, dry_run=True)
+
+    assert result.path == target
+    assert result.changed is False
+    assert result.dry_run is True
+    assert not target.exists()
+
+
+def test_yaml_round_trip_preserves_unicode(tmp_path: Path) -> None:
+    target = tmp_path / "services" / "registry.yaml"
+    data = {"services": [{"name": "codex-workbench", "purpose": "入口卡"}]}
+
+    write_yaml_atomic(target, data)
+
+    assert read_yaml(target) == data
+
+
+def test_read_text_utf8_reports_structured_io_error(tmp_path: Path) -> None:
+    with pytest.raises(WorkbenchError) as exc_info:
+        read_text_utf8(tmp_path / "missing.md")
+
+    assert exc_info.value.code is ErrorCode.IO_ERROR
+    assert exc_info.value.exit_code == 1
+
+
+def test_read_yaml_reports_structured_parse_error(tmp_path: Path) -> None:
+    target = tmp_path / "broken.yaml"
+    target.write_text("services: [\n", encoding="utf-8")
+
+    with pytest.raises(WorkbenchError) as exc_info:
+        read_yaml(target)
+
+    assert exc_info.value.code is ErrorCode.PARSE_ERROR
+    assert exc_info.value.exit_code == 2
+
+
+def test_text_write_reports_structured_io_error_when_parent_is_file(tmp_path: Path) -> None:
+    blocked_parent = tmp_path / "blocked"
+    blocked_parent.write_text("not a directory\n", encoding="utf-8")
+
+    with pytest.raises(WorkbenchError) as exc_info:
+        write_text_utf8_atomic(blocked_parent / "CURRENT.md", "content\n")
+
+    assert exc_info.value.code is ErrorCode.IO_ERROR
+    assert exc_info.value.exit_code == 1
+
+
+def test_yaml_write_reports_structured_io_error_when_parent_is_file(tmp_path: Path) -> None:
+    blocked_parent = tmp_path / "blocked"
+    blocked_parent.write_text("not a directory\n", encoding="utf-8")
+
+    with pytest.raises(WorkbenchError) as exc_info:
+        write_yaml_atomic(blocked_parent / "registry.yaml", {"services": []})
+
+    assert exc_info.value.code is ErrorCode.IO_ERROR
+    assert exc_info.value.exit_code == 1

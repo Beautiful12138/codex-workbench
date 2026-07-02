@@ -1,0 +1,29 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup|resume",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python -c \"from pathlib import Path; import os, runpy, sys; p=Path.cwd().resolve(); env=[Path(os.environ[k]).resolve() for k in ('WORKBENCH_ROOT','CODEX_WORKBENCH_ROOT','CODEX_WORKSPACE') if os.environ.get(k)]; root=next((x for x in (*env,p,*p.parents) if (x/'CURRENT.md').exists() and (x/'services'/'registry.yaml').exists()), None); hooks=(root/'.codex'/'hooks') if root else None; sys.exit(0) if root is None else (sys.path.insert(0, str(hooks)) or runpy.run_path(str(hooks/'session_start.py'), run_name='__main__'))\"",
+            "timeout": 10,
+            "statusMessage": "读取 Workbench 入口提醒"
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python -c \"from pathlib import Path; import os, runpy, sys; p=Path.cwd().resolve(); env=[Path(os.environ[k]).resolve() for k in ('WORKBENCH_ROOT','CODEX_WORKBENCH_ROOT','CODEX_WORKSPACE') if os.environ.get(k)]; root=next((x for x in (*env,p,*p.parents) if (x/'CURRENT.md').exists() and (x/'services'/'registry.yaml').exists()), None); hooks=(root/'.codex'/'hooks') if root else None; sys.exit(0) if root is None else (sys.path.insert(0, str(hooks)) or runpy.run_path(str(hooks/'user_prompt_submit.py'), run_name='__main__'))\"",
+            "timeout": 10,
+            "statusMessage": "注入 Workbench 轻提醒"
+          }
+        ]
+      }
+    ]
+  }
+}
