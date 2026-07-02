@@ -19,7 +19,7 @@ def create_workspace(root: Path) -> None:
     (root / "services").mkdir()
     (root / "AGENTS.md").write_text("# AGENTS\n", encoding="utf-8")
     (root / "CURRENT.md").write_text(
-        "# CURRENT\n\nrole: 入口卡\nworkspace_status: baseline\n",
+        "# CURRENT\n\nrole: 最近工作面板\nworkspace_status: baseline\n",
         encoding="utf-8",
     )
     (root / "services" / "registry.yaml").write_text(
@@ -126,7 +126,7 @@ def test_runtime_guidance_covers_multi_package_workbench_contract() -> None:
     assert recovery_policy.exists()
     policy_text = recovery_policy.read_text(encoding="utf-8")
     assert "显式路径优先" in policy_text
-    assert "generated recovery" in policy_text
+    assert "generated views" in policy_text
     assert "无法唯一判断" in policy_text
 
 
@@ -229,7 +229,7 @@ def test_dogfood_cli_runs_material_to_handoff_close_and_archive(tmp_path: Path) 
         [
             "intake",
             "create",
-            "REQ-DOGFOOD",
+            "REQ-20260702-900",
             "--title",
             "验证 Workbench 闭环",
             "--goal",
@@ -254,7 +254,7 @@ def test_dogfood_cli_runs_material_to_handoff_close_and_archive(tmp_path: Path) 
         [
             "intake",
             "confirm",
-            "REQ-DOGFOOD",
+            "REQ-20260702-900",
             "--workspace-root",
             root,
             "--updated-at",
@@ -278,9 +278,9 @@ def test_dogfood_cli_runs_material_to_handoff_close_and_archive(tmp_path: Path) 
         [
             "task",
             "create",
-            "REQ-DOGFOOD-TASK-DOGFOOD",
+            "REQ-20260702-900-TASK-20260702-001",
             "--requirement-id",
-            "REQ-DOGFOOD",
+            "REQ-20260702-900",
             "--title",
             "验证闭环",
             "--user-goal",
@@ -300,17 +300,17 @@ def test_dogfood_cli_runs_material_to_handoff_close_and_archive(tmp_path: Path) 
         ]
     )
 
-    requirement_yaml = tmp_path / "docs" / "active" / "REQ-DOGFOOD" / "requirement.yaml"
+    requirement_yaml = tmp_path / "docs" / "active" / "REQ-20260702-900" / "requirement.yaml"
     requirement = yaml.safe_load(requirement_yaml.read_text(encoding="utf-8"))
-    assert requirement["task_refs"] == ["REQ-DOGFOOD-TASK-DOGFOOD"]
+    assert requirement["task_refs"] == ["REQ-20260702-900-TASK-20260702-001"]
 
     invoke_ok(
         [
             "evidence",
             "create",
-            "EV-REQ-DOGFOOD-TASK-DOGFOOD",
+            "EV-REQ-20260702-900-TASK-20260702-001",
             "--task-id",
-            "REQ-DOGFOOD-TASK-DOGFOOD",
+            "REQ-20260702-900-TASK-20260702-001",
             "--conclusion",
             "passed",
             "--key-output",
@@ -325,9 +325,9 @@ def test_dogfood_cli_runs_material_to_handoff_close_and_archive(tmp_path: Path) 
         [
             "validation",
             "apply",
-            "REQ-DOGFOOD-TASK-DOGFOOD",
+            "REQ-20260702-900-TASK-20260702-001",
             "--evidence-id",
-            "EV-REQ-DOGFOOD-TASK-DOGFOOD",
+            "EV-REQ-20260702-900-TASK-20260702-001",
             "--status",
             "passed",
             "--workspace-root",
@@ -338,7 +338,7 @@ def test_dogfood_cli_runs_material_to_handoff_close_and_archive(tmp_path: Path) 
         [
             "handoff",
             "set",
-            "REQ-DOGFOOD-TASK-DOGFOOD",
+            "REQ-20260702-900-TASK-20260702-001",
             "--status",
             "accepted",
             "--note",
@@ -351,7 +351,7 @@ def test_dogfood_cli_runs_material_to_handoff_close_and_archive(tmp_path: Path) 
         [
             "task",
             "set-stage",
-            "REQ-DOGFOOD-TASK-DOGFOOD",
+            "REQ-20260702-900-TASK-20260702-001",
             "--stage",
             "done",
             "--workspace-root",
@@ -366,7 +366,7 @@ def test_dogfood_cli_runs_material_to_handoff_close_and_archive(tmp_path: Path) 
             "preflight",
             "0.1.0-dogfood",
             "--requirement-id",
-            "REQ-DOGFOOD",
+            "REQ-20260702-900",
             "--authorization-note",
             "用户确认可以归档样例版本。",
             "--archived-at",
@@ -376,13 +376,13 @@ def test_dogfood_cli_runs_material_to_handoff_close_and_archive(tmp_path: Path) 
         ],
     )
     assert missing_closure.exit_code != 0
-    assert "missing_requirement_closure: REQ-DOGFOOD" in combined_output(missing_closure)
+    assert "missing_requirement_closure: REQ-20260702-900" in combined_output(missing_closure)
 
     invoke_ok(
         [
             "requirement",
             "close",
-            "REQ-DOGFOOD",
+            "REQ-20260702-900",
             "--note",
             "用户确认需求已关闭。",
             "--workspace-root",
@@ -406,7 +406,7 @@ def test_dogfood_cli_runs_material_to_handoff_close_and_archive(tmp_path: Path) 
             "preflight",
             "0.1.0-dogfood",
             "--requirement-id",
-            "REQ-DOGFOOD",
+            "REQ-20260702-900",
             "--authorization-note",
             "用户确认可以归档样例版本。",
             "--archived-at",
@@ -421,7 +421,7 @@ def test_dogfood_cli_runs_material_to_handoff_close_and_archive(tmp_path: Path) 
             "version",
             "0.1.0-dogfood",
             "--requirement-id",
-            "REQ-DOGFOOD",
+            "REQ-20260702-900",
             "--authorization-note",
             "用户确认可以归档样例版本。",
             "--archived-at",
@@ -433,7 +433,7 @@ def test_dogfood_cli_runs_material_to_handoff_close_and_archive(tmp_path: Path) 
 
     assert "archive preflight clean" in preflight_output
     assert "archived docs/archive/0.1.0-dogfood/archive.yaml" in archive_output
-    assert not (tmp_path / "docs" / "active" / "REQ-DOGFOOD").exists()
-    assert not (tmp_path / "docs" / "active" / "REQ-DOGFOOD-TASK-DOGFOOD").exists()
-    assert (tmp_path / "docs" / "archive" / "0.1.0-dogfood" / "REQ-DOGFOOD").exists()
-    assert (tmp_path / "docs" / "archive" / "0.1.0-dogfood" / "REQ-DOGFOOD-TASK-DOGFOOD").exists()
+    assert not (tmp_path / "docs" / "active" / "REQ-20260702-900").exists()
+    assert not (tmp_path / "docs" / "active" / "REQ-20260702-900-TASK-20260702-001").exists()
+    assert (tmp_path / "docs" / "archive" / "0.1.0-dogfood" / "REQ-20260702-900").exists()
+    assert (tmp_path / "docs" / "archive" / "0.1.0-dogfood" / "REQ-20260702-900-TASK-20260702-001").exists()

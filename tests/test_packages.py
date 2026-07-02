@@ -33,11 +33,12 @@ def create_workspace(root: Path) -> None:
 
 def requirement_context() -> RequirementTemplateContext:
     return RequirementTemplateContext(
-        requirement_id="REQ-001",
+        requirement_id="REQ-20260702-001",
         title="构建轻量 Workbench",
         goal="让 Codex 专注用户任务。",
         acceptance=["可以创建任务包。"],
         non_goals=["不生成厚思想文档。"],
+        created_at="2026-07-01T09:00:00+08:00",
         updated_at="2026-07-01",
     )
 
@@ -48,13 +49,15 @@ def write_requirement(
     status: str = "readable",
     confirmed_by_user: bool = True,
 ) -> None:
-    requirement_dir = root / "docs" / "active" / "REQ-001"
+    requirement_dir = root / "docs" / "active" / "REQ-20260702-001"
     requirement_dir.mkdir(parents=True)
     payload = {
         "schema_version": "0.1",
-        "id": "REQ-001",
+        "id": "REQ-20260702-001",
         "title": "构建轻量 Workbench",
         "goal": "让 Codex 专注用户任务。",
+        "created_at": "2026-07-01T09:00:00+08:00",
+        "updated_at": "2026-07-01T09:00:00+08:00",
         "acceptance": ["可以创建任务包。"],
         "readiness": {
             "status": status,
@@ -83,14 +86,15 @@ def write_service(root: Path, name: str = "codex-workbench") -> None:
 
 def task_context(**overrides: object) -> TaskTemplateContext:
     data: dict[str, object] = {
-        "task_id": "REQ-001-TASK-001",
+        "task_id": "REQ-20260702-001-TASK-20260702-001",
         "title": "实现任务 CLI",
-        "requirement_id": "REQ-001",
+        "requirement_id": "REQ-20260702-001",
         "user_goal": "创建任务包。",
         "done_means": ["task.yaml 可校验。"],
         "allowed_scope": ["创建 package。"],
         "not_allowed_scope": ["创建 evidence。"],
         "current_next_step": "运行测试。",
+        "created_at": "2026-07-01T09:00:00+08:00",
         "updated_at": "2026-07-01",
         "service_refs": ["codex-workbench"],
     }
@@ -103,8 +107,8 @@ def test_create_requirement_package_writes_schema_valid_files(tmp_path: Path) ->
 
     result = create_requirement_package(tmp_path, requirement_context())
 
-    requirement_yaml = tmp_path / "docs" / "active" / "REQ-001" / "requirement.yaml"
-    requirement_md = tmp_path / "docs" / "active" / "REQ-001" / "requirement.md"
+    requirement_yaml = tmp_path / "docs" / "active" / "REQ-20260702-001" / "requirement.yaml"
+    requirement_md = tmp_path / "docs" / "active" / "REQ-20260702-001" / "requirement.md"
 
     assert result.dry_run is False
     assert requirement_yaml in result.paths
@@ -121,8 +125,8 @@ def test_create_task_package_writes_schema_valid_files_without_empty_ceremony(
 
     result = create_task_package(tmp_path, task_context())
 
-    task_yaml = tmp_path / "docs" / "active" / "REQ-001-TASK-001" / "task.yaml"
-    task_md = tmp_path / "docs" / "active" / "REQ-001-TASK-001" / "task.md"
+    task_yaml = tmp_path / "docs" / "active" / "REQ-20260702-001-TASK-20260702-001" / "task.yaml"
+    task_md = tmp_path / "docs" / "active" / "REQ-20260702-001-TASK-20260702-001" / "task.md"
 
     assert task_yaml in result.paths
     assert task_md in result.paths
@@ -141,20 +145,20 @@ def test_create_task_package_writes_requirement_link_and_readable_task_id(
 
     result = create_task_package(
         tmp_path,
-        task_context(task_id="REQ-001-TASK-001", service_refs=[]),
+        task_context(task_id="REQ-20260702-001-TASK-20260702-001", service_refs=[]),
     )
 
-    task_yaml = tmp_path / "docs" / "active" / "REQ-001-TASK-001" / "task.yaml"
-    task_md = tmp_path / "docs" / "active" / "REQ-001-TASK-001" / "task.md"
-    requirement_yaml = tmp_path / "docs" / "active" / "REQ-001" / "requirement.yaml"
+    task_yaml = tmp_path / "docs" / "active" / "REQ-20260702-001-TASK-20260702-001" / "task.yaml"
+    task_md = tmp_path / "docs" / "active" / "REQ-20260702-001-TASK-20260702-001" / "task.md"
+    requirement_yaml = tmp_path / "docs" / "active" / "REQ-20260702-001" / "requirement.yaml"
     task = yaml.safe_load(task_yaml.read_text(encoding="utf-8"))
     requirement = yaml.safe_load(requirement_yaml.read_text(encoding="utf-8"))
 
     assert task_yaml in result.paths
-    assert task["id"] == "REQ-001-TASK-001"
-    assert task["requirement_id"] == "REQ-001"
-    assert requirement["task_refs"] == ["REQ-001-TASK-001"]
-    assert task_md.read_text(encoding="utf-8").startswith("# REQ-001-TASK-001 实现任务 CLI")
+    assert task["id"] == "REQ-20260702-001-TASK-20260702-001"
+    assert task["requirement_id"] == "REQ-20260702-001"
+    assert requirement["task_refs"] == ["REQ-20260702-001-TASK-20260702-001"]
+    assert task_md.read_text(encoding="utf-8").startswith("# REQ-20260702-001-TASK-20260702-001 实现任务 CLI")
 
 
 def test_create_task_package_requires_requirement_prefixed_task_id(
@@ -167,7 +171,7 @@ def test_create_task_package_requires_requirement_prefixed_task_id(
         create_task_package(tmp_path, task_context(task_id="TASK-001"))
 
     assert exc_info.value.code is ErrorCode.VALIDATION_ERROR
-    assert "task_id_requirement_prefix_mismatch: REQ-001 -> TASK-001" in exc_info.value.message
+    assert "task_id_requirement_prefix_mismatch: REQ-20260702-001 -> TASK-001" in exc_info.value.message
     assert not (tmp_path / "docs" / "active" / "TASK-001").exists()
 
 
@@ -176,12 +180,12 @@ def test_package_create_dry_run_does_not_write_files(tmp_path: Path) -> None:
     write_requirement(tmp_path)
 
     result = create_task_package(tmp_path, task_context(), dry_run=True)
-    requirement_yaml = tmp_path / "docs" / "active" / "REQ-001" / "requirement.yaml"
+    requirement_yaml = tmp_path / "docs" / "active" / "REQ-20260702-001" / "requirement.yaml"
     requirement = yaml.safe_load(requirement_yaml.read_text(encoding="utf-8"))
 
     assert result.dry_run is True
     assert result.paths
-    assert not (tmp_path / "docs" / "active" / "REQ-001-TASK-001").exists()
+    assert not (tmp_path / "docs" / "active" / "REQ-20260702-001-TASK-20260702-001").exists()
     assert "task_refs" not in requirement
 
 
@@ -190,9 +194,9 @@ def test_create_task_package_rejects_requirement_id_mismatch_without_orphan_task
 ) -> None:
     create_workspace(tmp_path)
     write_requirement(tmp_path)
-    requirement_yaml = tmp_path / "docs" / "active" / "REQ-001" / "requirement.yaml"
+    requirement_yaml = tmp_path / "docs" / "active" / "REQ-20260702-001" / "requirement.yaml"
     data = yaml.safe_load(requirement_yaml.read_text(encoding="utf-8"))
-    data["id"] = "REQ-OTHER"
+    data["id"] = "REQ-20260703-001"
     requirement_yaml.write_text(
         yaml.safe_dump(data, allow_unicode=True, sort_keys=False),
         encoding="utf-8",
@@ -202,8 +206,8 @@ def test_create_task_package_rejects_requirement_id_mismatch_without_orphan_task
         create_task_package(tmp_path, task_context())
 
     assert exc_info.value.code is ErrorCode.VALIDATION_ERROR
-    assert "requirement_id_mismatch: expected=REQ-001 actual=REQ-OTHER" in exc_info.value.message
-    assert not (tmp_path / "docs" / "active" / "REQ-001-TASK-001").exists()
+    assert "requirement_id_mismatch: expected=REQ-20260702-001 actual=REQ-20260703-001" in exc_info.value.message
+    assert not (tmp_path / "docs" / "active" / "REQ-20260702-001-TASK-20260702-001").exists()
 
 
 def test_create_task_package_rejects_bad_requirement_task_refs_without_orphan_task(
@@ -211,7 +215,7 @@ def test_create_task_package_rejects_bad_requirement_task_refs_without_orphan_ta
 ) -> None:
     create_workspace(tmp_path)
     write_requirement(tmp_path)
-    requirement_yaml = tmp_path / "docs" / "active" / "REQ-001" / "requirement.yaml"
+    requirement_yaml = tmp_path / "docs" / "active" / "REQ-20260702-001" / "requirement.yaml"
     data = yaml.safe_load(requirement_yaml.read_text(encoding="utf-8"))
     data["task_refs"] = "TASK-OLD"
     requirement_yaml.write_text(
@@ -223,7 +227,7 @@ def test_create_task_package_rejects_bad_requirement_task_refs_without_orphan_ta
         create_task_package(tmp_path, task_context())
 
     assert exc_info.value.code is ErrorCode.VALIDATION_ERROR
-    assert not (tmp_path / "docs" / "active" / "REQ-001-TASK-001").exists()
+    assert not (tmp_path / "docs" / "active" / "REQ-20260702-001-TASK-20260702-001").exists()
 
 
 def test_package_create_refuses_to_overwrite_existing_files(tmp_path: Path) -> None:
@@ -266,8 +270,8 @@ def test_create_task_package_requires_existing_requirement(tmp_path: Path) -> No
         create_task_package(tmp_path, task_context())
 
     assert exc_info.value.code is ErrorCode.VALIDATION_ERROR
-    assert "missing_requirement_package: REQ-001" in exc_info.value.message
-    assert not (tmp_path / "docs" / "active" / "REQ-001-TASK-001").exists()
+    assert "missing_requirement_package: REQ-20260702-001" in exc_info.value.message
+    assert not (tmp_path / "docs" / "active" / "REQ-20260702-001-TASK-20260702-001").exists()
 
 
 def test_create_task_package_requires_readable_requirement(tmp_path: Path) -> None:
@@ -280,7 +284,7 @@ def test_create_task_package_requires_readable_requirement(tmp_path: Path) -> No
     assert exc_info.value.code is ErrorCode.VALIDATION_ERROR
     assert "requirement_not_readable" in exc_info.value.message
     assert "missing_user_confirmation" in exc_info.value.message
-    assert not (tmp_path / "docs" / "active" / "REQ-001-TASK-001").exists()
+    assert not (tmp_path / "docs" / "active" / "REQ-20260702-001-TASK-20260702-001").exists()
 
 
 @pytest.mark.parametrize("stage", ["in_progress", "blocked"])
@@ -301,12 +305,12 @@ def test_update_task_packet_updates_yaml_next_step_only(tmp_path: Path) -> None:
 
     result = update_task_packet(
         tmp_path,
-        "REQ-001-TASK-001",
+        "REQ-20260702-001-TASK-20260702-001",
         next_step="继续实现 CLI。",
     )
 
-    task_yaml = tmp_path / "docs" / "active" / "REQ-001-TASK-001" / "task.yaml"
-    task_md = tmp_path / "docs" / "active" / "REQ-001-TASK-001" / "task.md"
+    task_yaml = tmp_path / "docs" / "active" / "REQ-20260702-001-TASK-20260702-001" / "task.yaml"
+    task_md = tmp_path / "docs" / "active" / "REQ-20260702-001-TASK-20260702-001" / "task.md"
     task = yaml.safe_load(task_yaml.read_text(encoding="utf-8"))
     task_text = task_md.read_text(encoding="utf-8")
 
@@ -323,7 +327,7 @@ def test_update_task_packet_rejects_empty_next_step(tmp_path: Path) -> None:
     create_task_package(tmp_path, task_context())
 
     with pytest.raises(WorkbenchError) as exc_info:
-        update_task_packet(tmp_path, "REQ-001-TASK-001", next_step=" ")
+        update_task_packet(tmp_path, "REQ-20260702-001-TASK-20260702-001", next_step=" ")
 
     assert exc_info.value.code is ErrorCode.VALIDATION_ERROR
     assert "missing_next_step" in exc_info.value.message
@@ -334,14 +338,14 @@ def test_set_task_stage_updates_yaml_but_rejects_done_without_evidence(tmp_path:
     write_requirement(tmp_path)
     create_task_package(tmp_path, task_context())
 
-    ready_result = set_task_stage(tmp_path, "REQ-001-TASK-001", "ready")
-    task_yaml = tmp_path / "docs" / "active" / "REQ-001-TASK-001" / "task.yaml"
+    ready_result = set_task_stage(tmp_path, "REQ-20260702-001-TASK-20260702-001", "ready")
+    task_yaml = tmp_path / "docs" / "active" / "REQ-20260702-001-TASK-20260702-001" / "task.yaml"
 
     assert task_yaml in ready_result.paths
     assert yaml.safe_load(task_yaml.read_text(encoding="utf-8"))["stage"] == "ready"
 
     with pytest.raises(WorkbenchError) as exc_info:
-        set_task_stage(tmp_path, "REQ-001-TASK-001", "done")
+        set_task_stage(tmp_path, "REQ-20260702-001-TASK-20260702-001", "done")
 
     assert exc_info.value.code is ErrorCode.VALIDATION_ERROR
     assert "stage_transition_blocked" in exc_info.value.message
@@ -354,14 +358,14 @@ def test_prepare_task_writes_implementation_ready_state(tmp_path: Path) -> None:
 
     result = prepare_task(
         tmp_path,
-        "REQ-001-TASK-001",
+        "REQ-20260702-001-TASK-20260702-001",
         working_scope=["src/codex_workbench/packages.py"],
         implementation_ref="implementation.md",
         likely_touchpoints=["src/codex_workbench/cli.py"],
         risk_triggers=["触发真实数据写入时暂停确认。"],
     )
 
-    task_yaml = tmp_path / "docs" / "active" / "REQ-001-TASK-001" / "task.yaml"
+    task_yaml = tmp_path / "docs" / "active" / "REQ-20260702-001-TASK-20260702-001" / "task.yaml"
     task = yaml.safe_load(task_yaml.read_text(encoding="utf-8"))
 
     assert task_yaml in result.paths
@@ -384,16 +388,16 @@ def test_create_task_review_and_implementation_documents_are_package_local(
 
     review_result = create_task_review_document(
         tmp_path,
-        "REQ-001-TASK-001",
+        "REQ-20260702-001-TASK-20260702-001",
     )
     implementation_result = create_task_implementation_document(
         tmp_path,
-        "REQ-001-TASK-001",
+        "REQ-20260702-001-TASK-20260702-001",
     )
 
-    task_yaml = tmp_path / "docs" / "active" / "REQ-001-TASK-001" / "task.yaml"
-    review_md = tmp_path / "docs" / "active" / "REQ-001-TASK-001" / "review.md"
-    implementation_md = tmp_path / "docs" / "active" / "REQ-001-TASK-001" / "implementation.md"
+    task_yaml = tmp_path / "docs" / "active" / "REQ-20260702-001-TASK-20260702-001" / "task.yaml"
+    review_md = tmp_path / "docs" / "active" / "REQ-20260702-001-TASK-20260702-001" / "review.md"
+    implementation_md = tmp_path / "docs" / "active" / "REQ-20260702-001-TASK-20260702-001" / "implementation.md"
     task = yaml.safe_load(task_yaml.read_text(encoding="utf-8"))
 
     assert review_md in review_result.paths
@@ -409,13 +413,13 @@ def test_set_task_stage_in_progress_allows_empty_service_refs(tmp_path: Path) ->
     create_workspace(tmp_path)
     write_requirement(tmp_path)
     create_task_package(tmp_path, task_context(service_refs=[]))
-    task_yaml = tmp_path / "docs" / "active" / "REQ-001-TASK-001" / "task.yaml"
+    task_yaml = tmp_path / "docs" / "active" / "REQ-20260702-001-TASK-20260702-001" / "task.yaml"
     data = yaml.safe_load(task_yaml.read_text(encoding="utf-8"))
     data["stage"] = "ready"
     data["implementation"] = {"ready": True, "conclusion": "scoped"}
     task_yaml.write_text(yaml.safe_dump(data, allow_unicode=True, sort_keys=False), encoding="utf-8")
 
-    result = set_task_stage(tmp_path, "REQ-001-TASK-001", "in_progress")
+    result = set_task_stage(tmp_path, "REQ-20260702-001-TASK-20260702-001", "in_progress")
 
     assert task_yaml in result.paths
     assert yaml.safe_load(task_yaml.read_text(encoding="utf-8"))["stage"] == "in_progress"
@@ -425,10 +429,10 @@ def test_set_task_stage_in_progress_rejects_unknown_service_ref(tmp_path: Path) 
     create_workspace(tmp_path)
     write_requirement(tmp_path)
     create_task_package(tmp_path, task_context(service_refs=["missing-service"]))
-    prepare_task(tmp_path, "REQ-001-TASK-001", working_scope=["src/demo.py"])
+    prepare_task(tmp_path, "REQ-20260702-001-TASK-20260702-001", working_scope=["src/demo.py"])
 
     with pytest.raises(WorkbenchError) as exc_info:
-        set_task_stage(tmp_path, "REQ-001-TASK-001", "in_progress")
+        set_task_stage(tmp_path, "REQ-20260702-001-TASK-20260702-001", "in_progress")
 
     assert exc_info.value.code is ErrorCode.VALIDATION_ERROR
     assert "unknown_service_ref: missing-service" in exc_info.value.message
@@ -439,11 +443,11 @@ def test_set_task_stage_in_progress_allows_registered_service_ref(tmp_path: Path
     write_service(tmp_path)
     write_requirement(tmp_path)
     create_task_package(tmp_path, task_context(service_refs=["codex-workbench"]))
-    prepare_task(tmp_path, "REQ-001-TASK-001", working_scope=["src/demo.py"])
+    prepare_task(tmp_path, "REQ-20260702-001-TASK-20260702-001", working_scope=["src/demo.py"])
 
-    result = set_task_stage(tmp_path, "REQ-001-TASK-001", "in_progress")
+    result = set_task_stage(tmp_path, "REQ-20260702-001-TASK-20260702-001", "in_progress")
 
-    task_yaml = tmp_path / "docs" / "active" / "REQ-001-TASK-001" / "task.yaml"
+    task_yaml = tmp_path / "docs" / "active" / "REQ-20260702-001-TASK-20260702-001" / "task.yaml"
     assert task_yaml in result.paths
     assert yaml.safe_load(task_yaml.read_text(encoding="utf-8"))["stage"] == "in_progress"
 
@@ -454,7 +458,7 @@ def test_set_task_stage_rejects_obsolete_without_obsolete_workflow(tmp_path: Pat
     create_task_package(tmp_path, task_context())
 
     with pytest.raises(WorkbenchError) as exc_info:
-        set_task_stage(tmp_path, "REQ-001-TASK-001", "obsolete")
+        set_task_stage(tmp_path, "REQ-20260702-001-TASK-20260702-001", "obsolete")
 
     assert exc_info.value.code is ErrorCode.VALIDATION_ERROR
     assert "missing_obsolete_reason" in exc_info.value.message
@@ -467,14 +471,14 @@ def test_block_task_writes_recoverable_blocked_state(tmp_path: Path) -> None:
 
     result = block_task(
         tmp_path,
-        "REQ-001-TASK-001",
+        "REQ-20260702-001-TASK-20260702-001",
         reason="等待用户确认验收口径。",
         blocked_by="user",
         resume_condition="用户补充验收口径。",
         resume_stage="ready",
     )
 
-    task_yaml = tmp_path / "docs" / "active" / "REQ-001-TASK-001" / "task.yaml"
+    task_yaml = tmp_path / "docs" / "active" / "REQ-20260702-001-TASK-20260702-001" / "task.yaml"
     task = yaml.safe_load(task_yaml.read_text(encoding="utf-8"))
     assert task_yaml in result.paths
     assert task["stage"] == "blocked"
@@ -492,14 +496,14 @@ def test_obsolete_task_requires_reason_and_sets_stage(tmp_path: Path) -> None:
     create_task_package(tmp_path, task_context())
 
     with pytest.raises(WorkbenchError) as exc_info:
-        obsolete_task(tmp_path, "REQ-001-TASK-001", reason=" ")
+        obsolete_task(tmp_path, "REQ-20260702-001-TASK-20260702-001", reason=" ")
 
     assert exc_info.value.code is ErrorCode.VALIDATION_ERROR
     assert "missing_obsolete_reason" in exc_info.value.message
 
-    result = obsolete_task(tmp_path, "REQ-001-TASK-001", reason="误建任务，降级为废弃。")
+    result = obsolete_task(tmp_path, "REQ-20260702-001-TASK-20260702-001", reason="误建任务，降级为废弃。")
 
-    task_yaml = tmp_path / "docs" / "active" / "REQ-001-TASK-001" / "task.yaml"
+    task_yaml = tmp_path / "docs" / "active" / "REQ-20260702-001-TASK-20260702-001" / "task.yaml"
     task = yaml.safe_load(task_yaml.read_text(encoding="utf-8"))
     assert task_yaml in result.paths
     assert task["stage"] == "obsolete"

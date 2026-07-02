@@ -22,9 +22,11 @@ from codex_workbench.schema import CURRENT_SCHEMA_VERSION
 def task(**overrides: object) -> TaskState:
     data: dict[str, object] = {
         "schema_version": CURRENT_SCHEMA_VERSION,
-        "id": "REQ-demo-TASK-demo",
-        "requirement_id": "REQ-demo",
+        "id": "REQ-20260702-001-TASK-20260702-001",
+        "requirement_id": "REQ-20260702-001",
         "title": "Demo lifecycle task",
+        "created_at": "2026-07-01T09:00:00+08:00",
+        "updated_at": "2026-07-01T09:00:00+08:00",
         "stage": "ready",
         "service_refs": ["app"],
     }
@@ -293,17 +295,21 @@ def test_obsolete_archive_requires_reason() -> None:
 def test_requirement_must_be_readable_before_formal_task() -> None:
     raw_requirement = RequirementState(
         schema_version=CURRENT_SCHEMA_VERSION,
-        id="REQ-demo",
+        id="REQ-20260702-001",
         title="Demo requirement",
         goal="Build a workbench",
+        created_at="2026-07-01T08:00:00+08:00",
+        updated_at="2026-07-01T08:00:00+08:00",
         acceptance=["Lifecycle guards exist"],
         readiness={"status": "raw_materials", "confirmed_by_user": False},
     )
     readable_requirement = RequirementState(
         schema_version=CURRENT_SCHEMA_VERSION,
-        id="REQ-readable",
+        id="REQ-20260702-002",
         title="Readable requirement",
         goal="Build a workbench",
+        created_at="2026-07-01T08:30:00+08:00",
+        updated_at="2026-07-01T08:30:00+08:00",
         acceptance=["Lifecycle guards exist"],
         readiness={"status": "readable", "confirmed_by_user": True},
     )

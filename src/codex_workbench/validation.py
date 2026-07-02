@@ -17,6 +17,7 @@ from .models import (
 )
 from .refs import validate_package_ref
 from .templates import EvidenceTemplateContext, TemplateError, render_evidence_document
+from .timeutils import resolve_timestamp
 from .workspace import resolve_workspace_path
 
 
@@ -112,6 +113,7 @@ def apply_validation(
     task_id: str,
     evidence_id: str,
     status: str,
+    updated_at: str | None = None,
     dry_run: bool = False,
 ) -> ValidationWriteResult:
     root = Path(workspace_root).expanduser().resolve()
@@ -149,6 +151,7 @@ def apply_validation(
         "evidence_ref": evidence.id,
         "unverified_items": evidence.unverified_items,
     }
+    data["updated_at"] = resolve_timestamp(updated_at)
     write_yaml_atomic(task_yaml, data, dry_run=dry_run)
     return ValidationWriteResult(paths=(task_yaml,), dry_run=dry_run)
 
@@ -159,6 +162,7 @@ def set_handoff_status(
     task_id: str,
     status: str,
     note: str | None = None,
+    updated_at: str | None = None,
     dry_run: bool = False,
 ) -> ValidationWriteResult:
     root = Path(workspace_root).expanduser().resolve()
@@ -186,6 +190,7 @@ def set_handoff_status(
     if note:
         payload["note"] = note
     data["handoff"] = payload
+    data["updated_at"] = resolve_timestamp(updated_at)
     write_yaml_atomic(task_yaml, data, dry_run=dry_run)
     return ValidationWriteResult(paths=(task_yaml,), dry_run=dry_run)
 

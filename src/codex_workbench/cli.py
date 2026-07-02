@@ -40,6 +40,7 @@ from .records import (
 from .schema import core_model_json_schemas
 from .services import add_service, read_service_registry, service_status
 from .templates import RequirementTemplateContext, TaskTemplateContext, TemplateError
+from .timeutils import resolve_timestamp
 from .validation import (
     apply_validation,
     create_evidence_record,
@@ -64,7 +65,7 @@ action_app = typer.Typer(help="非任务动作记录工具。", no_args_is_help=
 change_app = typer.Typer(help="正式范围变化记录工具。", no_args_is_help=True)
 decision_app = typer.Typer(help="冷路径长期决策记录工具。", no_args_is_help=True)
 suspicion_app = typer.Typer(help="疑点线索记录工具。", no_args_is_help=True)
-index_app = typer.Typer(help="生成索引和恢复视图工具。", no_args_is_help=True)
+index_app = typer.Typer(help="生成 CURRENT、索引和恢复视图工具。", no_args_is_help=True)
 doctor_app = typer.Typer(help="工作区健康检查工具。", no_args_is_help=True)
 archive_app = typer.Typer(help="版本归档工具。", no_args_is_help=True)
 MARKDOWN_TEMPLATE_HINT = (
@@ -193,7 +194,7 @@ def index_generate(
     check: bool = typer.Option(False, "--check", help="只检查 generated view 是否最新。"),
     dry_run: bool = typer.Option(False, "--dry-run", help="只显示将写入的文件和生成摘要。"),
 ) -> None:
-    """生成 index 和 recovery 视图。"""
+    """生成 CURRENT、index 和 recovery 视图。"""
     try:
         root = find_workspace_root(workspace_root)
         if check:
@@ -291,6 +292,7 @@ def archive_version_command(
             dry_run=dry_run,
         )
         _echo_package_result(root, result.paths, dry_run=dry_run, verb="archived")
+        _refresh_generated_views(root, dry_run=dry_run)
     except WorkbenchError as exc:
         _exit_with_workbench_error(exc)
 
@@ -340,12 +342,13 @@ def workspace_root(
 
 @requirement_app.command("create")
 def requirement_create(
-    requirement_id: str = typer.Argument(..., help="需求 ID，例如 REQ-001。"),
+    requirement_id: str = typer.Argument(..., help="需求 ID，例如 REQ-20260702-001。"),
     title: str = typer.Option(..., "--title", help="需求标题。"),
     goal: str = typer.Option(..., "--goal", help="需求目标。"),
     acceptance: list[str] = typer.Option(..., "--acceptance", help="验收口径，可重复。"),
     non_goal: list[str] = typer.Option([], "--non-goal", help="非目标，可重复。"),
     workspace_root: Path = typer.Option(Path("."), "--workspace-root", help="Workbench 根目录。"),
+    created_at: str | None = typer.Option(None, "--created-at", help="创建时间；默认等于更新时间。"),
     updated_at: str = typer.Option(..., "--updated-at", help="更新时间。"),
     dry_run: bool = typer.Option(False, "--dry-run", help="只显示将写入的文件。"),
 ) -> None:
@@ -358,10 +361,12 @@ def requirement_create(
             goal=goal,
             acceptance=acceptance,
             non_goals=non_goal,
+            created_at=resolve_timestamp(created_at or updated_at),
             updated_at=updated_at,
         )
         result = create_requirement_package(root, context, dry_run=dry_run)
         _echo_package_result(root, result.paths, dry_run=dry_run)
+        _refresh_generated_views(root, dry_run=dry_run)
         _echo_markdown_template_hint()
     except (TemplateError, ValidationError) as exc:
         typer.echo(f"validation_error: {exc}", err=True)
@@ -372,7 +377,7 @@ def requirement_create(
 
 @requirement_app.command("close")
 def requirement_close(
-    requirement_id: str = typer.Argument(..., help="需求 ID，例如 REQ-001。"),
+    requirement_id: str = typer.Argument(..., help="需求 ID，例如 REQ-20260702-001。"),
     note: str = typer.Option(..., "--note", help="用户确认需求关闭说明。"),
     workspace_root: Path = typer.Option(Path("."), "--workspace-root", help="Workbench 根目录。"),
     updated_at: str | None = typer.Option(None, "--updated-at", help="更新时间。"),
@@ -389,6 +394,7 @@ def requirement_close(
             dry_run=dry_run,
         )
         _echo_package_result(root, result.paths, dry_run=dry_run, verb="updated")
+        _refresh_generated_views(root, dry_run=dry_run)
     except (ValidationError, ValueError) as exc:
         typer.echo(f"validation_error: {exc}", err=True)
         raise typer.Exit(2) from exc
@@ -398,7 +404,7 @@ def requirement_close(
 
 @task_app.command("create")
 def task_create(
-    task_id: str = typer.Argument(..., help="任务 ID，例如 REQ-001-TASK-001。"),
+    task_id: str = typer.Argument(..., help="任务 ID，例如 REQ-20260702-001-TASK-20260702-001。"),
     requirement_id: str = typer.Option(..., "--requirement-id", help="所属需求 ID。"),
     title: str = typer.Option(..., "--title", help="任务标题。"),
     user_goal: str = typer.Option(..., "--user-goal", help="用户目标。"),
@@ -411,6 +417,7 @@ def task_create(
     risk_level: str = typer.Option("low", "--risk-level", help="风险等级。"),
     stage: str = typer.Option("draft", "--stage", help="初始任务阶段。"),
     workspace_root: Path = typer.Option(Path("."), "--workspace-root", help="Workbench 根目录。"),
+    created_at: str | None = typer.Option(None, "--created-at", help="创建时间；默认等于更新时间。"),
     updated_at: str = typer.Option(..., "--updated-at", help="更新时间。"),
     dry_run: bool = typer.Option(False, "--dry-run", help="只显示将写入的文件。"),
 ) -> None:
@@ -424,6 +431,7 @@ def task_create(
             user_goal=user_goal,
             done_means=done,
             current_next_step=next_step,
+            created_at=resolve_timestamp(created_at or updated_at),
             updated_at=updated_at,
             allowed_scope=allowed_scope,
             not_allowed_scope=not_allowed_scope,
@@ -437,6 +445,7 @@ def task_create(
         updated_paths = tuple(path for path in result.paths if path.parent.name == requirement_id)
         _echo_package_result(root, created_paths, dry_run=dry_run)
         _echo_package_result(root, updated_paths, dry_run=dry_run, verb="updated")
+        _refresh_generated_views(root, dry_run=dry_run)
         _echo_markdown_template_hint()
     except (TemplateError, ValidationError) as exc:
         typer.echo(f"validation_error: {exc}", err=True)
@@ -447,7 +456,7 @@ def task_create(
 
 @task_app.command("update-packet")
 def task_update_packet(
-    task_id: str = typer.Argument(..., help="任务 ID，例如 REQ-001-TASK-001。"),
+    task_id: str = typer.Argument(..., help="任务 ID，例如 REQ-20260702-001-TASK-20260702-001。"),
     next_step: str = typer.Option(..., "--next", help="task.yaml 中的下一步恢复提示。"),
     workspace_root: Path = typer.Option(Path("."), "--workspace-root", help="Workbench 根目录。"),
     dry_run: bool = typer.Option(False, "--dry-run", help="只显示将写入的文件。"),
@@ -462,13 +471,14 @@ def task_update_packet(
             dry_run=dry_run,
         )
         _echo_package_result(root, result.paths, dry_run=dry_run, verb="updated")
+        _refresh_generated_views(root, dry_run=dry_run)
     except WorkbenchError as exc:
         _exit_with_workbench_error(exc)
 
 
 @task_app.command("set-stage")
 def task_set_stage(
-    task_id: str = typer.Argument(..., help="任务 ID，例如 REQ-001-TASK-001。"),
+    task_id: str = typer.Argument(..., help="任务 ID，例如 REQ-20260702-001-TASK-20260702-001。"),
     stage: str = typer.Option(..., "--stage", help="目标阶段。"),
     workspace_root: Path = typer.Option(Path("."), "--workspace-root", help="Workbench 根目录。"),
     dry_run: bool = typer.Option(False, "--dry-run", help="只显示将写入的文件。"),
@@ -478,6 +488,7 @@ def task_set_stage(
         root = find_workspace_root(workspace_root)
         result = set_task_stage(root, task_id, stage, dry_run=dry_run)
         _echo_package_result(root, result.paths, dry_run=dry_run, verb="updated")
+        _refresh_generated_views(root, dry_run=dry_run)
     except (ValidationError, ValueError) as exc:
         typer.echo(f"validation_error: {exc}", err=True)
         raise typer.Exit(2) from exc
@@ -487,7 +498,7 @@ def task_set_stage(
 
 @task_app.command("check")
 def task_check(
-    task_id: str = typer.Argument(..., help="任务 ID，例如 REQ-001-TASK-001。"),
+    task_id: str = typer.Argument(..., help="任务 ID，例如 REQ-20260702-001-TASK-20260702-001。"),
     to_stage: str = typer.Option(..., "--to", help="目标阶段。"),
     workspace_root: Path = typer.Option(Path("."), "--workspace-root", help="Workbench 根目录。"),
 ) -> None:
@@ -509,7 +520,7 @@ def task_check(
 
 @task_app.command("prepare")
 def task_prepare(
-    task_id: str = typer.Argument(..., help="任务 ID，例如 REQ-001-TASK-001。"),
+    task_id: str = typer.Argument(..., help="任务 ID，例如 REQ-20260702-001-TASK-20260702-001。"),
     working_scope: list[str] = typer.Option(
         ...,
         "--working-scope",
@@ -558,6 +569,7 @@ def task_prepare(
             dry_run=dry_run,
         )
         _echo_package_result(root, result.paths, dry_run=dry_run, verb="updated")
+        _refresh_generated_views(root, dry_run=dry_run)
     except (ValidationError, ValueError) as exc:
         typer.echo(f"validation_error: {exc}", err=True)
         raise typer.Exit(2) from exc
@@ -567,7 +579,7 @@ def task_prepare(
 
 @task_app.command("review-create")
 def task_review_create(
-    task_id: str = typer.Argument(..., help="任务 ID，例如 REQ-001-TASK-001。"),
+    task_id: str = typer.Argument(..., help="任务 ID，例如 REQ-20260702-001-TASK-20260702-001。"),
     workspace_root: Path = typer.Option(Path("."), "--workspace-root", help="Workbench 根目录。"),
     dry_run: bool = typer.Option(False, "--dry-run", help="只显示将写入的文件。"),
 ) -> None:
@@ -580,6 +592,7 @@ def task_review_create(
             dry_run=dry_run,
         )
         _echo_package_result(root, result.paths, dry_run=dry_run, verb="updated")
+        _refresh_generated_views(root, dry_run=dry_run)
         _echo_markdown_template_hint()
     except (ValidationError, ValueError) as exc:
         typer.echo(f"validation_error: {exc}", err=True)
@@ -590,7 +603,7 @@ def task_review_create(
 
 @task_app.command("implementation-create")
 def task_implementation_create(
-    task_id: str = typer.Argument(..., help="任务 ID，例如 REQ-001-TASK-001。"),
+    task_id: str = typer.Argument(..., help="任务 ID，例如 REQ-20260702-001-TASK-20260702-001。"),
     workspace_root: Path = typer.Option(Path("."), "--workspace-root", help="Workbench 根目录。"),
     dry_run: bool = typer.Option(False, "--dry-run", help="只显示将写入的文件。"),
 ) -> None:
@@ -603,6 +616,7 @@ def task_implementation_create(
             dry_run=dry_run,
         )
         _echo_package_result(root, result.paths, dry_run=dry_run, verb="updated")
+        _refresh_generated_views(root, dry_run=dry_run)
         _echo_markdown_template_hint()
     except (ValidationError, ValueError) as exc:
         typer.echo(f"validation_error: {exc}", err=True)
@@ -613,7 +627,7 @@ def task_implementation_create(
 
 @task_app.command("block")
 def task_block(
-    task_id: str = typer.Argument(..., help="任务 ID，例如 REQ-001-TASK-001。"),
+    task_id: str = typer.Argument(..., help="任务 ID，例如 REQ-20260702-001-TASK-20260702-001。"),
     reason: str = typer.Option(..., "--reason", help="阻塞原因。"),
     blocked_by: str = typer.Option(..., "--blocked-by", help="阻塞方。"),
     resume_condition: str = typer.Option(..., "--resume-condition", help="恢复条件。"),
@@ -634,6 +648,7 @@ def task_block(
             dry_run=dry_run,
         )
         _echo_package_result(root, result.paths, dry_run=dry_run, verb="updated")
+        _refresh_generated_views(root, dry_run=dry_run)
     except (ValidationError, ValueError) as exc:
         typer.echo(f"validation_error: {exc}", err=True)
         raise typer.Exit(2) from exc
@@ -643,7 +658,7 @@ def task_block(
 
 @task_app.command("obsolete")
 def task_obsolete(
-    task_id: str = typer.Argument(..., help="任务 ID，例如 REQ-001-TASK-001。"),
+    task_id: str = typer.Argument(..., help="任务 ID，例如 REQ-20260702-001-TASK-20260702-001。"),
     reason: str = typer.Option(..., "--reason", help="废弃原因。"),
     workspace_root: Path = typer.Option(Path("."), "--workspace-root", help="Workbench 根目录。"),
     dry_run: bool = typer.Option(False, "--dry-run", help="只显示将写入的文件。"),
@@ -653,6 +668,7 @@ def task_obsolete(
         root = find_workspace_root(workspace_root)
         result = obsolete_task(root, task_id, reason=reason, dry_run=dry_run)
         _echo_package_result(root, result.paths, dry_run=dry_run, verb="updated")
+        _refresh_generated_views(root, dry_run=dry_run)
     except (ValidationError, ValueError) as exc:
         typer.echo(f"validation_error: {exc}", err=True)
         raise typer.Exit(2) from exc
@@ -681,6 +697,7 @@ def service_add(
             dry_run=dry_run,
         )
         _echo_package_result(root, (result.path,), dry_run=dry_run, verb="updated")
+        _refresh_generated_views(root, dry_run=dry_run)
     except WorkbenchError as exc:
         _exit_with_workbench_error(exc)
 
@@ -759,6 +776,7 @@ def material_add(
             dry_run=dry_run,
         )
         _echo_package_result(root, result.paths, dry_run=dry_run, verb="updated")
+        _refresh_generated_views(root, dry_run=dry_run)
     except (ValidationError, ValueError) as exc:
         typer.echo(f"validation_error: {exc}", err=True)
         raise typer.Exit(2) from exc
@@ -791,6 +809,7 @@ def discovery_create(
     assumption: list[str] = typer.Option([], "--assumption", help="假设，可重复。"),
     question: list[str] = typer.Option([], "--question", help="待用户确认问题，可重复。"),
     workspace_root: Path = typer.Option(Path("."), "--workspace-root", help="Workbench 根目录。"),
+    created_at: str | None = typer.Option(None, "--created-at", help="创建时间；默认等于更新时间。"),
     updated_at: str = typer.Option(..., "--updated-at", help="更新时间。"),
     dry_run: bool = typer.Option(False, "--dry-run", help="只显示将写入的文件。"),
 ) -> None:
@@ -811,6 +830,7 @@ def discovery_create(
             dry_run=dry_run,
         )
         _echo_package_result(root, result.paths, dry_run=dry_run)
+        _refresh_generated_views(root, dry_run=dry_run)
     except (ValidationError, ValueError) as exc:
         typer.echo(f"validation_error: {exc}", err=True)
         raise typer.Exit(2) from exc
@@ -820,7 +840,7 @@ def discovery_create(
 
 @intake_app.command("create")
 def intake_create(
-    requirement_id: str = typer.Argument(..., help="需求 ID，例如 REQ-001。"),
+    requirement_id: str = typer.Argument(..., help="需求 ID，例如 REQ-20260702-001。"),
     title: str = typer.Option(..., "--title", help="需求标题。"),
     goal: str = typer.Option(..., "--goal", help="需求目标。"),
     acceptance: list[str] = typer.Option(..., "--acceptance", help="验收口径，可重复。"),
@@ -833,6 +853,7 @@ def intake_create(
     question: list[str] = typer.Option([], "--question", help="待用户确认问题，可重复。"),
     non_goal: list[str] = typer.Option([], "--non-goal", help="非目标，可重复。"),
     workspace_root: Path = typer.Option(Path("."), "--workspace-root", help="Workbench 根目录。"),
+    created_at: str | None = typer.Option(None, "--created-at", help="创建时间；默认等于更新时间。"),
     updated_at: str = typer.Option(..., "--updated-at", help="更新时间。"),
     dry_run: bool = typer.Option(False, "--dry-run", help="只显示将写入的文件。"),
 ) -> None:
@@ -845,6 +866,7 @@ def intake_create(
             goal=goal,
             acceptance=acceptance,
             non_goals=non_goal,
+            created_at=resolve_timestamp(created_at or updated_at),
             material_refs=material_ref,
             discovery_refs=discovery_ref,
             confirmed_facts=confirmed_fact,
@@ -856,6 +878,7 @@ def intake_create(
         )
         result = create_intake_draft(root, context, dry_run=dry_run)
         _echo_package_result(root, result.paths, dry_run=dry_run)
+        _refresh_generated_views(root, dry_run=dry_run)
     except (TemplateError, ValidationError, ValueError) as exc:
         typer.echo(f"validation_error: {exc}", err=True)
         raise typer.Exit(2) from exc
@@ -865,7 +888,7 @@ def intake_create(
 
 @intake_app.command("confirm")
 def intake_confirm(
-    requirement_id: str = typer.Argument(..., help="需求 ID，例如 REQ-001。"),
+    requirement_id: str = typer.Argument(..., help="需求 ID，例如 REQ-20260702-001。"),
     workspace_root: Path = typer.Option(Path("."), "--workspace-root", help="Workbench 根目录。"),
     updated_at: str | None = typer.Option(None, "--updated-at", help="更新时间。"),
     dry_run: bool = typer.Option(False, "--dry-run", help="只显示将写入的文件。"),
@@ -875,6 +898,7 @@ def intake_confirm(
         root = find_workspace_root(workspace_root)
         result = confirm_intake(root, requirement_id, updated_at=updated_at, dry_run=dry_run)
         _echo_package_result(root, result.paths, dry_run=dry_run, verb="updated")
+        _refresh_generated_views(root, dry_run=dry_run)
     except (ValidationError, ValueError) as exc:
         typer.echo(f"validation_error: {exc}", err=True)
         raise typer.Exit(2) from exc
@@ -884,7 +908,7 @@ def intake_confirm(
 
 @evidence_app.command("create")
 def evidence_create(
-    evidence_id: str = typer.Argument(..., help="证据 ID，例如 EV-REQ-001-TASK-001。"),
+    evidence_id: str = typer.Argument(..., help="证据 ID，例如 EV-REQ-20260702-001-TASK-20260702-001。"),
     task_id: str = typer.Option(..., "--task-id", help="关联任务 ID。"),
     conclusion: str = typer.Option(..., "--conclusion", help="证据结论。"),
     key_output: list[str] = typer.Option(
@@ -915,6 +939,7 @@ def evidence_create(
             dry_run=dry_run,
         )
         _echo_package_result(root, result.paths, dry_run=dry_run)
+        _refresh_generated_views(root, dry_run=dry_run)
         _echo_markdown_template_hint()
     except (ValidationError, ValueError) as exc:
         typer.echo(f"validation_error: {exc}", err=True)
@@ -925,7 +950,7 @@ def evidence_create(
 
 @validation_app.command("apply")
 def validation_apply(
-    task_id: str = typer.Argument(..., help="任务 ID，例如 REQ-001-TASK-001。"),
+    task_id: str = typer.Argument(..., help="任务 ID，例如 REQ-20260702-001-TASK-20260702-001。"),
     evidence_id: str = typer.Option(..., "--evidence-id", help="要应用的 evidence ID。"),
     status: str = typer.Option(..., "--status", help="验证结论。"),
     workspace_root: Path = typer.Option(Path("."), "--workspace-root", help="Workbench 根目录。"),
@@ -942,6 +967,7 @@ def validation_apply(
             dry_run=dry_run,
         )
         _echo_package_result(root, result.paths, dry_run=dry_run, verb="updated")
+        _refresh_generated_views(root, dry_run=dry_run)
     except (ValidationError, ValueError) as exc:
         typer.echo(f"validation_error: {exc}", err=True)
         raise typer.Exit(2) from exc
@@ -951,7 +977,7 @@ def validation_apply(
 
 @handoff_app.command("set")
 def handoff_set(
-    task_id: str = typer.Argument(..., help="任务 ID，例如 REQ-001-TASK-001。"),
+    task_id: str = typer.Argument(..., help="任务 ID，例如 REQ-20260702-001-TASK-20260702-001。"),
     status: str = typer.Option(..., "--status", help="handoff 状态。"),
     note: str | None = typer.Option(None, "--note", help="交接说明。"),
     workspace_root: Path = typer.Option(Path("."), "--workspace-root", help="Workbench 根目录。"),
@@ -968,6 +994,7 @@ def handoff_set(
             dry_run=dry_run,
         )
         _echo_package_result(root, result.paths, dry_run=dry_run, verb="updated")
+        _refresh_generated_views(root, dry_run=dry_run)
     except (ValidationError, ValueError) as exc:
         typer.echo(f"validation_error: {exc}", err=True)
         raise typer.Exit(2) from exc
@@ -1028,6 +1055,7 @@ def action_create(
             dry_run=dry_run,
         )
         _echo_package_result(root, result.paths, dry_run=dry_run)
+        _refresh_generated_views(root, dry_run=dry_run)
         _echo_markdown_template_hint()
     except (ValidationError, ValueError) as exc:
         typer.echo(f"validation_error: {exc}", err=True)
@@ -1086,6 +1114,7 @@ def change_create(
             dry_run=dry_run,
         )
         _echo_package_result(root, result.paths, dry_run=dry_run)
+        _refresh_generated_views(root, dry_run=dry_run)
         _echo_markdown_template_hint()
     except (ValidationError, ValueError) as exc:
         typer.echo(f"validation_error: {exc}", err=True)
@@ -1121,6 +1150,7 @@ def decision_create(
             dry_run=dry_run,
         )
         _echo_package_result(root, result.paths, dry_run=dry_run)
+        _refresh_generated_views(root, dry_run=dry_run)
         _echo_markdown_template_hint()
     except (ValidationError, ValueError) as exc:
         typer.echo(f"validation_error: {exc}", err=True)
@@ -1162,6 +1192,7 @@ def suspicion_create(
             dry_run=dry_run,
         )
         _echo_package_result(root, result.paths, dry_run=dry_run)
+        _refresh_generated_views(root, dry_run=dry_run)
         _echo_markdown_template_hint()
     except (ValidationError, ValueError) as exc:
         typer.echo(f"validation_error: {exc}", err=True)
@@ -1184,6 +1215,12 @@ def _echo_package_result(
 
 def _echo_markdown_template_hint() -> None:
     typer.echo(MARKDOWN_TEMPLATE_HINT)
+
+
+def _refresh_generated_views(root: Path, *, dry_run: bool) -> None:
+    if dry_run:
+        return
+    generate_index_views(root, dry_run=False)
 
 
 def _echo_index_check(result) -> None:

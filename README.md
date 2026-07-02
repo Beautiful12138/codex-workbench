@@ -4,7 +4,8 @@
 
 它由几部分组成：
 
-- 运行期入口：`AGENTS.md`、`CURRENT.md`、`WORKSPACE.md`
+- 运行期入口：`AGENTS.md`、`WORKSPACE.md`
+- 动态当前面板：`CURRENT.md`
 - 状态包：`docs/active/`、`docs/inbox/`、`docs/archive/`
 - 生成视图：`docs/generated/index.md`、`docs/generated/recovery.md`
 - 规则：`docs/policies/`
@@ -19,9 +20,9 @@
 新的 Codex 或新窗口进入时按顺序读取：
 
 1. `AGENTS.md`：热路径入口地图。
-2. `CURRENT.md`：当前入口卡。
+2. `CURRENT.md`：CLI 生成的最近工作面板。
 3. 用户明确给出的路径、需求 ID、任务 ID 或服务名。
-4. `docs/generated/recovery.md`：多活动包恢复视图。
+4. `docs/generated/recovery.md`：续接和异常队列。
 5. 被选中的 requirement / task 包 YAML 和 Markdown。
 
 普通讨论、解释和只读探索默认不写状态。只有用户明确要纳入、创建、推进、验证、关闭、归档或留下可恢复记录时，才进入 CLI 和包写入。
@@ -49,8 +50,9 @@
 - `docs/active/<REQ-ID>/` 是需求包。
 - `docs/active/<TASK-ID>/` 是任务包。
 - 多个 requirement 和 task 可以同时存在。
-- `CURRENT.md` 不锁定唯一任务。
-- `docs/generated/recovery.md` 帮助 Codex 选择工作对象。
+- `CURRENT.md` 不锁定唯一任务，只展示最近更新的活动任务。
+- `docs/generated/index.md` 是完整活动目录，按 YAML 真源生成。
+- `docs/generated/recovery.md` 帮助 Codex 选择续接对象和发现异常。
 - `services/registry.yaml` 登记相关服务；`service_refs` 是上下文标记，不是路径白名单。
 - 外部服务仓库的 clone、branch、commit、worktree、push 不由 Workbench 接管。
 
@@ -65,7 +67,7 @@
 - `evidence create`、`validation apply`、`handoff set`：记录验证事实、验证结论和用户交接。
 - `service add/list/status`：登记服务并做只读状态检查。
 - `action create`、`change classify/create`、`decision create`、`suspicion create`：记录非任务动作、正式范围变化、长期决策和疑点线索。
-- `index generate/check`：生成或检查恢复视图。
+- `index generate/check`：生成或检查 `CURRENT.md`、`docs/generated/index.md` 和 `docs/generated/recovery.md`。
 - `doctor check`：只读健康检查。
 - `archive preflight/version/list`：版本归档和历史查询。
 

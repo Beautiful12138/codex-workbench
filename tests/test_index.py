@@ -41,43 +41,54 @@ def write_yaml(path: Path, payload: dict) -> None:
 def create_full_index_fixture(root: Path) -> None:
     create_workspace(root)
     write_yaml(
-        root / "docs" / "active" / "REQ-001" / "requirement.yaml",
+        root / "docs" / "active" / "REQ-20260702-001" / "requirement.yaml",
         {
             "schema_version": "0.1",
-            "id": "REQ-001",
+            "id": "REQ-20260702-001",
             "title": "构建 Workbench",
             "goal": "让 Codex 可恢复地工作。",
+            "created_at": "2026-07-01T09:00:00+08:00",
             "updated_at": "2026-07-01",
             "acceptance": ["index 可重建。"],
-            "task_refs": ["REQ-001-TASK-001"],
+            "task_refs": ["REQ-20260702-001-TASK-20260702-001"],
             "readiness": {"status": "readable", "confirmed_by_user": True},
         },
     )
     write_yaml(
-        root / "docs" / "active" / "REQ-001-TASK-001" / "task.yaml",
+        root / "docs" / "active" / "REQ-20260702-001-TASK-20260702-001" / "task.yaml",
         {
             "schema_version": "0.1",
-            "id": "REQ-001-TASK-001",
-            "requirement_id": "REQ-001",
+            "id": "REQ-20260702-001-TASK-20260702-001",
+            "requirement_id": "REQ-20260702-001",
             "title": "生成索引",
+            "created_at": "2026-07-01T09:30:00+08:00",
+            "updated_at": "2026-07-01T10:00:00+08:00",
             "stage": "in_progress",
             "process_level": "standard",
             "risk_level": "standard",
             "service_refs": ["codex-workbench"],
-            "validation": {"status": "passed", "evidence_ref": "EV-REQ-001-TASK-001"},
+            "validation": {"status": "passed", "evidence_ref": "EV-REQ-20260702-001-TASK-20260702-001"},
             "handoff": {"status": "waiting_user_validation"},
         },
     )
     write_yaml(
-        root / "docs" / "active" / "REQ-001-TASK-001" / "evidence.yaml",
+        root / "docs" / "active" / "REQ-20260702-001-TASK-20260702-001" / "evidence.yaml",
         {
             "schema_version": "0.1",
-            "id": "EV-REQ-001-TASK-001",
-            "task_id": "REQ-001-TASK-001",
+            "id": "EV-REQ-20260702-001-TASK-20260702-001",
+            "task_id": "REQ-20260702-001-TASK-20260702-001",
             "conclusion": "passed",
             "key_outputs": ["python -m pytest passed", "full evidence body must stay out"],
             "unverified_items": [],
         },
+    )
+    (root / "docs" / "active" / "REQ-20260702-001-TASK-20260702-001" / "review.md").write_text(
+        "# REQ-20260702-001-TASK-20260702-001 评审\n\n有评审内容。\n",
+        encoding="utf-8",
+    )
+    (root / "docs" / "active" / "REQ-20260702-001-TASK-20260702-001" / "implementation.md").write_text(
+        "# REQ-20260702-001-TASK-20260702-001 实现说明\n\n有实现内容。\n",
+        encoding="utf-8",
     )
     write_yaml(
         root / "docs" / "inbox" / "materials.yaml",
@@ -164,26 +175,34 @@ def create_full_index_fixture(root: Path) -> None:
 
 def test_generate_index_views_rebuilds_generated_outputs_without_source_writes(tmp_path: Path) -> None:
     create_full_index_fixture(tmp_path)
-    source_yaml = tmp_path / "docs" / "active" / "REQ-001-TASK-001" / "task.yaml"
+    source_yaml = tmp_path / "docs" / "active" / "REQ-20260702-001-TASK-20260702-001" / "task.yaml"
     before_source = source_yaml.read_text(encoding="utf-8")
 
     result = generate_index_views(tmp_path, dry_run=False)
 
     index_path = tmp_path / "docs" / "generated" / "index.md"
     recovery_path = tmp_path / "docs" / "generated" / "recovery.md"
+    current_path = tmp_path / "CURRENT.md"
     index_text = index_path.read_text(encoding="utf-8")
     recovery_text = recovery_path.read_text(encoding="utf-8")
-    assert result.paths == (index_path, recovery_path)
+    current_text = current_path.read_text(encoding="utf-8")
+    assert result.paths == (current_path, index_path, recovery_path)
+    assert "# CURRENT" in current_text
+    assert "| 最近更新 | 需求 | 任务 | 阶段 | 包内容 | 验证 | 下一步 |" in current_text
+    assert "REQ-20260702-001-TASK-20260702-001" in current_text
+    assert "review, implementation, evidence" in current_text
     assert "generated view; YAML remains the source of truth" in index_text
-    assert "`REQ-001` 构建 Workbench" in index_text
-    assert "`REQ-001-TASK-001` 生成索引 [in_progress]" in index_text
+    assert "| 需求 | 标题 | readiness | 任务数 | 最近更新 |" in index_text
+    assert "| REQ-20260702-001 | 构建 Workbench | readable | 1 | 2026-07-01 |" in index_text
+    assert "| 需求 | 任务 | 标题 | 阶段 | 包内容 | 验证 | 最近更新 | 下一步 |" in index_text
+    assert "| REQ-20260702-001 | REQ-20260702-001-TASK-20260702-001 | 生成索引 | in_progress | review, implementation, evidence | passed | 2026-07-01T10:00:00+08:00 | - |" in index_text
     assert "`codex-workbench`" in index_text
     assert "ACT-001" in index_text
     assert "CHG-001" in index_text
     assert "DEC-001" in index_text
     assert "SUS-001" in index_text
-    assert "## Recovery" in recovery_text
-    assert "REQ-001-TASK-001" in recovery_text
+    assert "## 续接队列" in recovery_text
+    assert "REQ-20260702-001-TASK-20260702-001" in recovery_text
     assert "full evidence body must stay out" not in recovery_text
     assert "D:/private/raw/philosophy.md" not in index_text
     assert source_yaml.read_text(encoding="utf-8") == before_source
@@ -195,10 +214,11 @@ def test_generate_index_views_dry_run_does_not_write_generated_files(tmp_path: P
     result = generate_index_views(tmp_path, dry_run=True)
 
     assert result.dry_run is True
+    assert (tmp_path / "CURRENT.md").read_text(encoding="utf-8") == "# CURRENT\n"
     assert not (tmp_path / "docs" / "generated" / "index.md").exists()
     assert not (tmp_path / "docs" / "generated" / "recovery.md").exists()
-    assert "REQ-001-TASK-001" in result.index_text
-    assert "## Recovery" in result.recovery_text
+    assert "REQ-20260702-001-TASK-20260702-001" in result.index_text
+    assert "## 续接队列" in result.recovery_text
 
 
 def test_deleted_generated_views_rebuild_byte_stable(tmp_path: Path) -> None:
@@ -233,7 +253,7 @@ def test_check_generated_views_reports_stale_without_rewriting(tmp_path: Path) -
 
 def test_conflict_report_is_returned_and_rendered_without_source_mutation(tmp_path: Path) -> None:
     create_full_index_fixture(tmp_path)
-    task_yaml = tmp_path / "docs" / "active" / "REQ-001-TASK-001" / "task.yaml"
+    task_yaml = tmp_path / "docs" / "active" / "REQ-20260702-001-TASK-20260702-001" / "task.yaml"
     task = yaml.safe_load(task_yaml.read_text(encoding="utf-8"))
     task["service_refs"] = ["missing-service"]
     task_yaml.write_text(yaml.safe_dump(task, allow_unicode=True, sort_keys=False), encoding="utf-8")
@@ -241,41 +261,41 @@ def test_conflict_report_is_returned_and_rendered_without_source_mutation(tmp_pa
 
     result = generate_index_views(tmp_path)
 
-    assert result.conflicts == ["unknown_service_ref: REQ-001-TASK-001 -> missing-service"]
-    assert "unknown_service_ref: REQ-001-TASK-001 -> missing-service" in result.index_text
+    assert result.conflicts == ["unknown_service_ref: REQ-20260702-001-TASK-20260702-001 -> missing-service"]
+    assert "unknown_service_ref: REQ-20260702-001-TASK-20260702-001 -> missing-service" in result.index_text
     assert task_yaml.read_text(encoding="utf-8") == before_source
 
 
 def test_path_id_mismatch_is_reported_as_conflict(tmp_path: Path) -> None:
     create_full_index_fixture(tmp_path)
-    task_yaml = tmp_path / "docs" / "active" / "REQ-001-TASK-001" / "task.yaml"
+    task_yaml = tmp_path / "docs" / "active" / "REQ-20260702-001-TASK-20260702-001" / "task.yaml"
     task = yaml.safe_load(task_yaml.read_text(encoding="utf-8"))
-    task["id"] = "REQ-001-TASK-OTHER"
+    task["id"] = "REQ-20260702-001-TASK-20260702-999"
     task_yaml.write_text(yaml.safe_dump(task, allow_unicode=True, sort_keys=False), encoding="utf-8")
 
     result = generate_index_views(tmp_path, dry_run=True)
 
-    assert "task_id_mismatch: path=REQ-001-TASK-001 yaml=REQ-001-TASK-OTHER" in result.conflicts
+    assert "task_id_mismatch: path=REQ-20260702-001-TASK-20260702-001 yaml=REQ-20260702-001-TASK-20260702-999" in result.conflicts
 
 
 def test_task_requirement_mismatch_is_reported_as_conflict(tmp_path: Path) -> None:
     create_workspace(tmp_path)
     write_yaml(
-        tmp_path / "docs" / "active" / "REQ-001" / "requirement.yaml",
+        tmp_path / "docs" / "active" / "REQ-20260702-001" / "requirement.yaml",
         {
             "schema_version": "0.1",
-            "id": "REQ-001",
+            "id": "REQ-20260702-001",
             "title": "需求一",
             "goal": "测试任务归属。",
             "acceptance": ["归属冲突可见。"],
-            "task_refs": ["REQ-001-TASK-001"],
+            "task_refs": ["REQ-20260702-001-TASK-20260702-001"],
         },
     )
     write_yaml(
-        tmp_path / "docs" / "active" / "REQ-001-TASK-001" / "task.yaml",
+        tmp_path / "docs" / "active" / "REQ-20260702-001-TASK-20260702-001" / "task.yaml",
         {
             "schema_version": "0.1",
-            "id": "REQ-001-TASK-001",
+            "id": "REQ-20260702-001-TASK-20260702-001",
             "requirement_id": "REQ-OTHER",
             "title": "错绑任务",
             "stage": "draft",
@@ -286,7 +306,7 @@ def test_task_requirement_mismatch_is_reported_as_conflict(tmp_path: Path) -> No
     result = generate_index_views(tmp_path, dry_run=True)
 
     assert (
-        "task_requirement_mismatch: REQ-001 -> REQ-001-TASK-001 requirement_id=REQ-OTHER"
+        "task_requirement_mismatch: REQ-20260702-001 -> REQ-20260702-001-TASK-20260702-001 requirement_id=REQ-OTHER"
         in result.conflicts
     )
 
@@ -294,22 +314,22 @@ def test_task_requirement_mismatch_is_reported_as_conflict(tmp_path: Path) -> No
 def test_recovery_groups_active_tasks_by_requirement(tmp_path: Path) -> None:
     create_workspace(tmp_path)
     write_yaml(
-        tmp_path / "docs" / "active" / "REQ-001" / "requirement.yaml",
+        tmp_path / "docs" / "active" / "REQ-20260702-001" / "requirement.yaml",
         {
             "schema_version": "0.1",
-            "id": "REQ-001",
+            "id": "REQ-20260702-001",
             "title": "需求一",
             "goal": "测试恢复分组。",
             "acceptance": ["分组可见。"],
-            "task_refs": ["REQ-001-TASK-001"],
+            "task_refs": ["REQ-20260702-001-TASK-20260702-001"],
         },
     )
     write_yaml(
-        tmp_path / "docs" / "active" / "REQ-001-TASK-001" / "task.yaml",
+        tmp_path / "docs" / "active" / "REQ-20260702-001-TASK-20260702-001" / "task.yaml",
         {
             "schema_version": "0.1",
-            "id": "REQ-001-TASK-001",
-            "requirement_id": "REQ-001",
+            "id": "REQ-20260702-001-TASK-20260702-001",
+            "requirement_id": "REQ-20260702-001",
             "title": "实现恢复视图",
             "stage": "in_progress",
             "process_level": "standard",
@@ -322,18 +342,19 @@ def test_recovery_groups_active_tasks_by_requirement(tmp_path: Path) -> None:
                 "resume_condition": "测试样例确认后继续。",
                 "resume_stage": "ready",
             },
-            "validation": {"status": "partial", "evidence_ref": "EV-REQ-001-TASK-001"},
+            "validation": {"status": "partial", "evidence_ref": "EV-REQ-20260702-001-TASK-20260702-001"},
         },
     )
 
     result = generate_index_views(tmp_path, dry_run=True)
 
-    assert "- requirement `REQ-001` 需求一" in result.recovery_text
-    assert "task `REQ-001-TASK-001` 实现恢复视图 [in_progress]" in result.recovery_text
+    assert "## 续接队列" in result.recovery_text
+    assert "- requirement `REQ-20260702-001` 需求一" in result.recovery_text
+    assert "task `REQ-20260702-001-TASK-20260702-001` 实现恢复视图 [in_progress]" in result.recovery_text
     assert "risk=high/process=standard" in result.recovery_text
     assert "next=继续增强 recovery。" in result.recovery_text
     assert "blocked=等待测试样例确认。" in result.recovery_text
-    assert "validation=partial evidence=EV-REQ-001-TASK-001" in result.recovery_text
+    assert "validation=partial evidence=EV-REQ-20260702-001-TASK-20260702-001" in result.recovery_text
 
 
 def test_bad_yaml_is_reported_as_conflict_instead_of_raising(tmp_path: Path) -> None:
@@ -354,8 +375,8 @@ def test_recovery_view_is_bounded_and_uses_material_output_allowlist(tmp_path: P
         yaml.safe_dump(materials, allow_unicode=True, sort_keys=False),
         encoding="utf-8",
     )
-    extra_task_ids = [f"REQ-001-TASK-{index:03d}" for index in range(2, 12)]
-    requirement_yaml = tmp_path / "docs" / "active" / "REQ-001" / "requirement.yaml"
+    extra_task_ids = [f"REQ-20260702-001-TASK-20260702-{index:03d}" for index in range(2, 12)]
+    requirement_yaml = tmp_path / "docs" / "active" / "REQ-20260702-001" / "requirement.yaml"
     requirement = yaml.safe_load(requirement_yaml.read_text(encoding="utf-8"))
     requirement["task_refs"].extend(extra_task_ids)
     requirement_yaml.write_text(
@@ -363,13 +384,13 @@ def test_recovery_view_is_bounded_and_uses_material_output_allowlist(tmp_path: P
         encoding="utf-8",
     )
     for index in range(2, 12):
-        task_id = f"REQ-001-TASK-{index:03d}"
+        task_id = f"REQ-20260702-001-TASK-20260702-{index:03d}"
         write_yaml(
             tmp_path / "docs" / "active" / task_id / "task.yaml",
             {
                 "schema_version": "0.1",
                 "id": task_id,
-                "requirement_id": "REQ-001",
+                "requirement_id": "REQ-20260702-001",
                 "title": f"任务 {index}",
                 "stage": "in_progress",
                 "process_level": "standard",
@@ -396,7 +417,7 @@ def test_generate_index_views_lists_archive_without_polluting_recovery(
             "schema_version": "0.1",
             "version": "1.0.0",
             "archived_at": "2026-07-01",
-            "requirement_ids": ["REQ-001"],
+            "requirement_ids": ["REQ-20260702-001"],
             "authorization": {
                 "type": "archive_authorization",
                 "source": "user",
@@ -405,23 +426,23 @@ def test_generate_index_views_lists_archive_without_polluting_recovery(
             "entries": [
                 {
                     "schema_version": "0.1",
-                    "id": "ARCHIVE-1.0.0-REQ-001",
+                    "id": "ARCHIVE-1.0.0-REQ-20260702-001",
                     "version": "1.0.0",
                     "source_kind": "requirement",
-                    "source_id": "REQ-001",
-                    "source_path": "docs/active/REQ-001",
-                    "archive_path": "docs/archive/1.0.0/REQ-001",
+                    "source_id": "REQ-20260702-001",
+                    "source_path": "docs/active/REQ-20260702-001",
+                    "archive_path": "docs/archive/1.0.0/REQ-20260702-001",
                     "reason": "requirement_version_archive",
                     "archived_at": "2026-07-01",
                 },
                 {
                     "schema_version": "0.1",
-                    "id": "ARCHIVE-1.0.0-REQ-001-TASK-001",
+                    "id": "ARCHIVE-1.0.0-REQ-20260702-001-TASK-20260702-001",
                     "version": "1.0.0",
                     "source_kind": "task",
-                    "source_id": "REQ-001-TASK-001",
-                    "source_path": "docs/active/REQ-001-TASK-001",
-                    "archive_path": "docs/archive/1.0.0/REQ-001-TASK-001",
+                    "source_id": "REQ-20260702-001-TASK-20260702-001",
+                    "source_path": "docs/active/REQ-20260702-001-TASK-20260702-001",
+                    "archive_path": "docs/archive/1.0.0/REQ-20260702-001-TASK-20260702-001",
                     "reason": "requirement_task_version_archive",
                     "archived_at": "2026-07-01",
                 },
@@ -433,11 +454,11 @@ def test_generate_index_views_lists_archive_without_polluting_recovery(
 
     assert "## Archive" in result.index_text
     assert (
-        "`1.0.0` archived_at=2026-07-01 requirements=REQ-001 entries=REQ-001, REQ-001-TASK-001"
+        "`1.0.0` archived_at=2026-07-01 requirements=REQ-20260702-001 entries=REQ-20260702-001, REQ-20260702-001-TASK-20260702-001"
         in result.index_text
     )
-    assert "REQ-001" not in result.recovery_text
-    assert "REQ-001-TASK-001" not in result.recovery_text
+    assert "REQ-20260702-001" not in result.recovery_text
+    assert "REQ-20260702-001-TASK-20260702-001" not in result.recovery_text
 
 
 def test_generate_index_views_reports_invalid_archive_manifest(tmp_path: Path) -> None:
@@ -448,7 +469,7 @@ def test_generate_index_views_reports_invalid_archive_manifest(tmp_path: Path) -
             "schema_version": "0.1",
             "version": "1.0.0",
             "archived_at": "2026-07-01",
-            "requirement_ids": ["REQ-001"],
+            "requirement_ids": ["REQ-20260702-001"],
             "authorization": {
                 "type": "acceptance_confirmation",
                 "source": "user",

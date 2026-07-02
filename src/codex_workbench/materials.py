@@ -19,6 +19,7 @@ from .models import (
 )
 from .packages import PackageWriteResult, create_requirement_package, write_package_files
 from .templates import RequirementTemplateContext
+from .timeutils import resolve_timestamp
 from .workspace import resolve_workspace_path
 
 
@@ -150,6 +151,7 @@ def create_intake_draft(
         title=context.title,
         goal=context.goal,
         acceptance=context.acceptance,
+        created_at=context.created_at,
         updated_at=context.updated_at,
         non_goals=context.non_goals,
         task_refs=context.task_refs,
@@ -204,8 +206,7 @@ def confirm_intake(
     readiness["confirmed_by_user"] = True
     readiness["material_refs"] = material_refs
     readiness["discovery_refs"] = discovery_refs
-    if updated_at:
-        data["updated_at"] = updated_at
+    data["updated_at"] = resolve_timestamp(updated_at)
     write_yaml_atomic(path, data, dry_run=dry_run)
     return RegistryWriteResult(paths=(path,), dry_run=dry_run)
 

@@ -15,6 +15,7 @@ from codex_workbench.models import (
     ReviewStatus,
     RiskLevel,
     ServiceRegistry,
+    RequirementState,
     TaskStage,
     TaskState,
 )
@@ -27,9 +28,11 @@ ROOT = Path(__file__).resolve().parents[1]
 def minimal_task(**overrides: object) -> dict[str, object]:
     data: dict[str, object] = {
         "schema_version": CURRENT_SCHEMA_VERSION,
-        "id": "REQ-demo-TASK-demo",
-        "requirement_id": "REQ-demo",
+        "id": "REQ-20260702-001-TASK-20260702-001",
+        "requirement_id": "REQ-20260702-001",
         "title": "Demo task",
+        "created_at": "2026-07-02T10:00:00+08:00",
+        "updated_at": "2026-07-02T10:00:00+08:00",
         "stage": "draft",
         "service_refs": [],
     }
@@ -48,17 +51,17 @@ def test_task_state_accepts_minimal_valid_task() -> None:
 def test_task_state_accepts_requirement_linked_task_id() -> None:
     task = TaskState.model_validate(
         minimal_task(
-            id="REQ-001-TASK-001",
-            requirement_id="REQ-001",
+            id="REQ-20260702-001-TASK-20260702-001",
+            requirement_id="REQ-20260702-001",
         )
     )
 
-    assert task.id == "REQ-001-TASK-001"
-    assert task.requirement_id == "REQ-001"
+    assert task.id == "REQ-20260702-001-TASK-20260702-001"
+    assert task.requirement_id == "REQ-20260702-001"
 
 
 def test_task_state_requires_requirement_id() -> None:
-    data = minimal_task(id="REQ-001-TASK-001", requirement_id="REQ-001")
+    data = minimal_task()
     data.pop("requirement_id")
 
     with pytest.raises(ValidationError) as exc_info:
@@ -71,12 +74,50 @@ def test_task_state_rejects_task_id_outside_requirement_prefix() -> None:
     with pytest.raises(ValidationError) as exc_info:
         TaskState.model_validate(
             minimal_task(
-                id="REQ-002-TASK-001",
-                requirement_id="REQ-001",
+                id="REQ-20260703-001-TASK-20260703-001",
+                requirement_id="REQ-20260702-001",
             )
         )
 
     assert "task_id_requirement_prefix_mismatch" in str(exc_info.value)
+
+
+def test_requirement_state_requires_created_and_updated_time() -> None:
+    with pytest.raises(ValidationError) as exc_info:
+        RequirementState.model_validate(
+            {
+                "schema_version": CURRENT_SCHEMA_VERSION,
+                "id": "REQ-20260702-001",
+                "title": "Demo requirement",
+                "goal": "稳定协作。",
+                "acceptance": ["有时间字段。"],
+                "updated_at": "2026-07-02T10:00:00+08:00",
+            }
+        )
+
+    assert exc_info.value.errors()[0]["loc"] == ("created_at",)
+
+
+def test_task_state_requires_created_and_updated_time() -> None:
+    data = minimal_task()
+    data.pop("updated_at")
+
+    with pytest.raises(ValidationError) as exc_info:
+        TaskState.model_validate(data)
+
+    assert exc_info.value.errors()[0]["loc"] == ("updated_at",)
+
+
+def test_task_state_rejects_non_dated_task_id() -> None:
+    with pytest.raises(ValidationError) as exc_info:
+        TaskState.model_validate(
+            minimal_task(
+                id="REQ-20260702-001-TASK-001",
+                requirement_id="REQ-20260702-001",
+            )
+        )
+
+    assert "invalid_task_id_format" in str(exc_info.value)
 
 
 def test_task_state_rejects_unknown_stage() -> None:

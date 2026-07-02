@@ -85,10 +85,10 @@ task 能 done 必须同时满足：
 
 ```powershell
 $env:PYTHONPATH='src'
-python -m codex_workbench evidence create EV-REQ-001-TASK-001 --task-id REQ-001-TASK-001 --conclusion passed --key-output "python -m pytest passed" --updated-at "2026-07-02"
-python -m codex_workbench validation apply REQ-001-TASK-001 --evidence-id EV-REQ-001-TASK-001 --status passed
-python -m codex_workbench handoff set REQ-001-TASK-001 --status waiting_user_validation
-python -m codex_workbench handoff set REQ-001-TASK-001 --status accepted --note "用户确认验收通过。"
-python -m codex_workbench task check REQ-001-TASK-001 --to done
-python -m codex_workbench task set-stage REQ-001-TASK-001 --stage done
+python -m codex_workbench evidence create EV-REQ-20260702-001-TASK-20260702-001 --task-id REQ-20260702-001-TASK-20260702-001 --conclusion passed --key-output "python -m pytest passed" --updated-at "2026-07-02"
+python -m codex_workbench validation apply REQ-20260702-001-TASK-20260702-001 --evidence-id EV-REQ-20260702-001-TASK-20260702-001 --status passed
+python -m codex_workbench handoff set REQ-20260702-001-TASK-20260702-001 --status waiting_user_validation
+python -m codex_workbench handoff set REQ-20260702-001-TASK-20260702-001 --status accepted --note "用户确认验收通过。"
+python -m codex_workbench task check REQ-20260702-001-TASK-20260702-001 --to done
+python -m codex_workbench task set-stage REQ-20260702-001-TASK-20260702-001 --stage done
 ```

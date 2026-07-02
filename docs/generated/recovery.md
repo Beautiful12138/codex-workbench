@@ -2,7 +2,7 @@
 
 > short generated view; open package YAML for source facts.
 
-## Recovery
+## 续接队列
 
 - no active tasks
 

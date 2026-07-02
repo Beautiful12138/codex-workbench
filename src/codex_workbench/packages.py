@@ -21,6 +21,7 @@ from .templates import (
     render_review_document,
     render_task_package,
 )
+from .timeutils import resolve_timestamp
 from .workspace import resolve_workspace_path
 
 
@@ -168,8 +169,7 @@ def close_requirement(
                 "note": clean_note,
             }
         )
-    if updated_at:
-        data["updated_at"] = updated_at
+    data["updated_at"] = resolve_timestamp(updated_at)
     RequirementState.model_validate(data)
     write_yaml_atomic(path, data, dry_run=dry_run)
     return PackageWriteResult(paths=(path,), dry_run=dry_run)
@@ -180,11 +180,13 @@ def update_task_packet(
     task_id: str,
     *,
     next_step: str,
+    updated_at: str | None = None,
     dry_run: bool = False,
 ) -> PackageWriteResult:
     root, task_yaml, data, task = _load_task_package(workspace_root, task_id)
     clean_next_step = _clean_required(next_step, "missing_next_step")
     data["next_step"] = clean_next_step
+    data["updated_at"] = resolve_timestamp(updated_at)
     TaskState.model_validate(data)
     write_yaml_atomic(task_yaml, data, dry_run=dry_run)
     return PackageWriteResult(paths=(task_yaml,), dry_run=dry_run)
@@ -195,6 +197,7 @@ def set_task_stage(
     task_id: str,
     stage: str,
     *,
+    updated_at: str | None = None,
     dry_run: bool = False,
 ) -> PackageWriteResult:
     root = Path(workspace_root).expanduser().resolve()
@@ -232,6 +235,7 @@ def set_task_stage(
         assert_done_evidence_valid(root, task)
 
     data["stage"] = target_stage.value
+    data["updated_at"] = resolve_timestamp(updated_at)
     write_yaml_atomic(task_yaml, data, dry_run=dry_run)
     return PackageWriteResult(paths=(task_yaml,), dry_run=dry_run)
 
@@ -285,6 +289,7 @@ def prepare_task(
     risk_acceptance_note: str | None = None,
     likely_touchpoints: list[str] | None = None,
     risk_triggers: list[str] | None = None,
+    updated_at: str | None = None,
     dry_run: bool = False,
 ) -> PackageWriteResult:
     root, task_yaml, data, task = _load_task_package(workspace_root, task_id)
@@ -329,6 +334,7 @@ def prepare_task(
             }
         )
 
+    data["updated_at"] = resolve_timestamp(updated_at)
     task = TaskState.model_validate(data)
     if task.id != task_id:
         raise WorkbenchError(
@@ -344,6 +350,7 @@ def create_task_review_document(
     workspace_root: str | Path,
     task_id: str,
     *,
+    updated_at: str | None = None,
     dry_run: bool = False,
 ) -> PackageWriteResult:
     root, task_yaml, data, task = _load_task_package(workspace_root, task_id)
@@ -359,6 +366,7 @@ def create_task_review_document(
     review["ref"] = "review.md"
     if review.get("status") in (None, "not_started"):
         review["status"] = "pending"
+    data["updated_at"] = resolve_timestamp(updated_at)
     TaskState.model_validate(data)
     result = write_package_files(root, files, dry_run=dry_run)
     try:
@@ -373,6 +381,7 @@ def create_task_implementation_document(
     workspace_root: str | Path,
     task_id: str,
     *,
+    updated_at: str | None = None,
     dry_run: bool = False,
 ) -> PackageWriteResult:
     root, task_yaml, data, task = _load_task_package(workspace_root, task_id)
@@ -386,6 +395,7 @@ def create_task_implementation_document(
             exit_code=2,
         )
     implementation["ref"] = "implementation.md"
+    data["updated_at"] = resolve_timestamp(updated_at)
     TaskState.model_validate(data)
     result = write_package_files(root, files, dry_run=dry_run)
     try:
@@ -404,6 +414,7 @@ def block_task(
     blocked_by: str,
     resume_condition: str,
     resume_stage: str,
+    updated_at: str | None = None,
     dry_run: bool = False,
 ) -> PackageWriteResult:
     root, task_yaml, data, task = _load_task_package(workspace_root, task_id)
@@ -444,8 +455,9 @@ def block_task(
             ErrorCode.VALIDATION_ERROR,
             f"stage_transition_blocked: {reasons}",
             exit_code=2,
-        )
+    )
     data["stage"] = TaskStage.BLOCKED.value
+    data["updated_at"] = resolve_timestamp(updated_at)
     write_yaml_atomic(task_yaml, data, dry_run=dry_run)
     return PackageWriteResult(paths=(task_yaml,), dry_run=dry_run)
 
@@ -455,6 +467,7 @@ def obsolete_task(
     task_id: str,
     *,
     reason: str,
+    updated_at: str | None = None,
     dry_run: bool = False,
 ) -> PackageWriteResult:
     root, task_yaml, data, task = _load_task_package(workspace_root, task_id)
@@ -469,6 +482,7 @@ def obsolete_task(
             exit_code=2,
         )
     data["stage"] = TaskStage.OBSOLETE.value
+    data["updated_at"] = resolve_timestamp(updated_at)
     write_yaml_atomic(task_yaml, data, dry_run=dry_run)
     return PackageWriteResult(paths=(task_yaml,), dry_run=dry_run)
 

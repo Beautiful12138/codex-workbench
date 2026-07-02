@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from enum import Enum
+import re
 from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
@@ -9,6 +10,8 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 CURRENT_SCHEMA_VERSION = "0.1"
 SchemaVersion = Literal["0.1"]
 NonEmptyString = Annotated[str, Field(min_length=1)]
+REQUIREMENT_ID_PATTERN = re.compile(r"^REQ-\d{8}-\d{3,}$")
+TASK_ID_PATTERN = re.compile(r"^(REQ-\d{8}-\d{3,})-TASK-\d{8}-\d{3,}$")
 
 
 class WorkbenchModel(BaseModel):
@@ -215,7 +218,8 @@ class RequirementState(WorkbenchModel):
     id: NonEmptyString
     title: NonEmptyString
     goal: NonEmptyString
-    updated_at: str | None = None
+    created_at: NonEmptyString
+    updated_at: NonEmptyString
     readiness: RequirementReadinessState = Field(default_factory=RequirementReadinessState)
     non_goals: list[str] = Field(default_factory=list)
     acceptance: list[str] = Field(default_factory=list)
@@ -223,12 +227,20 @@ class RequirementState(WorkbenchModel):
     knowledge: Knowledge = Field(default_factory=Knowledge)
     confirmations: list[ConfirmationState] = Field(default_factory=list)
 
+    @field_validator("id")
+    def require_dated_requirement_id(cls, value: str) -> str:
+        if not REQUIREMENT_ID_PATTERN.fullmatch(value):
+            raise ValueError(f"invalid_requirement_id_format: {value}")
+        return value
+
 
 class TaskState(WorkbenchModel):
     schema_version: SchemaVersion
     id: NonEmptyString
     requirement_id: NonEmptyString
     title: NonEmptyString
+    created_at: NonEmptyString
+    updated_at: NonEmptyString
     stage: TaskStage = TaskStage.DRAFT
     next_step: NonEmptyString | None = None
     process_level: ProcessLevel = ProcessLevel.MICRO
@@ -246,6 +258,12 @@ class TaskState(WorkbenchModel):
     likely_touchpoints: list[str] = Field(default_factory=list)
     risk_triggers: list[str] = Field(default_factory=list)
 
+    @field_validator("requirement_id")
+    def require_dated_requirement_ref(cls, value: str) -> str:
+        if not REQUIREMENT_ID_PATTERN.fullmatch(value):
+            raise ValueError(f"invalid_requirement_id_format: {value}")
+        return value
+
     @model_validator(mode="after")
     def require_requirement_prefixed_id(self) -> "TaskState":
         expected_prefix = f"{self.requirement_id}-"
@@ -253,6 +271,9 @@ class TaskState(WorkbenchModel):
             raise ValueError(
                 f"task_id_requirement_prefix_mismatch: {self.requirement_id} -> {self.id}"
             )
+        match = TASK_ID_PATTERN.fullmatch(self.id)
+        if not match or match.group(1) != self.requirement_id:
+            raise ValueError(f"invalid_task_id_format: {self.id}")
         return self
 
 

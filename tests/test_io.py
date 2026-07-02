@@ -16,12 +16,12 @@ from codex_workbench.io import (
 def test_atomic_text_write_round_trips_utf8(tmp_path: Path) -> None:
     target = tmp_path / "CURRENT.md"
 
-    result = write_text_utf8_atomic(target, "role: 入口卡\n")
+    result = write_text_utf8_atomic(target, "role: 最近工作面板\n")
 
     assert result.path == target
     assert result.changed is True
     assert result.dry_run is False
-    assert read_text_utf8(target) == "role: 入口卡\n"
+    assert read_text_utf8(target) == "role: 最近工作面板\n"
 
 
 def test_dry_run_text_write_does_not_create_file(tmp_path: Path) -> None:
@@ -57,7 +57,7 @@ def test_dry_run_yaml_write_does_not_create_file(tmp_path: Path) -> None:
 
 def test_yaml_round_trip_preserves_unicode(tmp_path: Path) -> None:
     target = tmp_path / "services" / "registry.yaml"
-    data = {"services": [{"name": "codex-workbench", "purpose": "入口卡"}]}
+    data = {"services": [{"name": "codex-workbench", "purpose": "最近工作面板"}]}
 
     write_yaml_atomic(target, data)
 

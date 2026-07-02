@@ -33,14 +33,16 @@ def write_yaml(path: Path, payload: dict) -> None:
 
 def write_closed_requirement(root: Path, *, confirmations: list[dict] | None = None) -> None:
     write_yaml(
-        root / "docs" / "active" / "REQ-001" / "requirement.yaml",
+        root / "docs" / "active" / "REQ-20260702-001" / "requirement.yaml",
         {
             "schema_version": "0.1",
-            "id": "REQ-001",
+            "id": "REQ-20260702-001",
             "title": "完成 Workbench 版本",
             "goal": "形成可归档的本地版本。",
+            "created_at": "2026-07-01T09:00:00+08:00",
+            "updated_at": "2026-07-01T09:00:00+08:00",
             "readiness": {"status": "readable", "confirmed_by_user": True},
-            "task_refs": ["REQ-001-TASK-001"],
+            "task_refs": ["REQ-20260702-001-TASK-20260702-001"],
             "confirmations": confirmations
             if confirmations is not None
             else [
@@ -52,8 +54,8 @@ def write_closed_requirement(root: Path, *, confirmations: list[dict] | None = N
             ],
         },
     )
-    (root / "docs" / "active" / "REQ-001" / "requirement.md").write_text(
-        "# REQ-001\n",
+    (root / "docs" / "active" / "REQ-20260702-001" / "requirement.md").write_text(
+        "# REQ-20260702-001\n",
         encoding="utf-8",
     )
 
@@ -70,15 +72,17 @@ def write_done_task(
 ) -> None:
     validation_payload = validation or {
         "status": "passed",
-        "evidence_ref": "EV-REQ-001-TASK-001",
+        "evidence_ref": "EV-REQ-20260702-001-TASK-20260702-001",
         "unverified_items": [],
     }
     evidence_unverified_items = evidence_unverified_items or []
     task_payload = {
         "schema_version": "0.1",
-        "id": "REQ-001-TASK-001",
-        "requirement_id": "REQ-001",
+        "id": "REQ-20260702-001-TASK-20260702-001",
+        "requirement_id": "REQ-20260702-001",
         "title": "完成归档前验证",
+        "created_at": "2026-07-01T09:30:00+08:00",
+        "updated_at": "2026-07-01T10:00:00+08:00",
         "stage": stage,
         "process_level": "standard",
         "risk_level": "standard",
@@ -87,24 +91,24 @@ def write_done_task(
     }
     if obsolete_reason is not None:
         task_payload["obsolete_reason"] = obsolete_reason
-    write_yaml(root / "docs" / "active" / "REQ-001-TASK-001" / "task.yaml", task_payload)
-    (root / "docs" / "active" / "REQ-001-TASK-001" / "task.md").write_text(
-        "# REQ-001-TASK-001\n",
+    write_yaml(root / "docs" / "active" / "REQ-20260702-001-TASK-20260702-001" / "task.yaml", task_payload)
+    (root / "docs" / "active" / "REQ-20260702-001-TASK-20260702-001" / "task.md").write_text(
+        "# REQ-20260702-001-TASK-20260702-001\n",
         encoding="utf-8",
     )
     write_yaml(
-        root / "docs" / "active" / "REQ-001-TASK-001" / "evidence.yaml",
+        root / "docs" / "active" / "REQ-20260702-001-TASK-20260702-001" / "evidence.yaml",
         {
             "schema_version": "0.1",
-            "id": "EV-REQ-001-TASK-001",
-            "task_id": "REQ-001-TASK-001",
+            "id": "EV-REQ-20260702-001-TASK-20260702-001",
+            "task_id": "REQ-20260702-001-TASK-20260702-001",
             "conclusion": evidence_conclusion,
             "key_outputs": ["python -m pytest passed"],
             "unverified_items": evidence_unverified_items,
         },
     )
-    (root / "docs" / "active" / "REQ-001-TASK-001" / "evidence.md").write_text(
-        "# EV-REQ-001-TASK-001\n",
+    (root / "docs" / "active" / "REQ-20260702-001-TASK-20260702-001" / "evidence.md").write_text(
+        "# EV-REQ-20260702-001-TASK-20260702-001\n",
         encoding="utf-8",
     )
 
@@ -120,7 +124,7 @@ def test_plan_version_archive_requires_independent_archive_authorization(
         plan_version_archive(
             tmp_path,
             version="1.0.0",
-            requirement_ids=["REQ-001"],
+            requirement_ids=["REQ-20260702-001"],
             archive_authorization_note="",
             archived_at="2026-07-01",
         )
@@ -140,13 +144,13 @@ def test_plan_version_archive_requires_requirement_closure_confirmation(
         plan_version_archive(
             tmp_path,
             version="1.0.0",
-            requirement_ids=["REQ-001"],
+            requirement_ids=["REQ-20260702-001"],
             archive_authorization_note="用户确认版本可以归档。",
             archived_at="2026-07-01",
         )
 
     assert exc_info.value.code is ErrorCode.VALIDATION_ERROR
-    assert "missing_requirement_closure: REQ-001" in exc_info.value.message
+    assert "missing_requirement_closure: REQ-20260702-001" in exc_info.value.message
 
 
 def test_plan_version_archive_blocks_waiting_handoff(tmp_path: Path) -> None:
@@ -158,20 +162,20 @@ def test_plan_version_archive_blocks_waiting_handoff(tmp_path: Path) -> None:
         plan_version_archive(
             tmp_path,
             version="1.0.0",
-            requirement_ids=["REQ-001"],
+            requirement_ids=["REQ-20260702-001"],
             archive_authorization_note="用户确认版本可以归档。",
             archived_at="2026-07-01",
         )
 
     assert exc_info.value.code is ErrorCode.VALIDATION_ERROR
-    assert "archive_preflight_blocked: REQ-001-TASK-001 handoff_waiting" in exc_info.value.message
+    assert "archive_preflight_blocked: REQ-20260702-001-TASK-20260702-001 handoff_waiting" in exc_info.value.message
 
 
 @pytest.mark.parametrize(
     ("validation", "evidence_conclusion", "evidence_unverified_items", "expected"),
     [
         (
-            {"status": "failed", "evidence_ref": "EV-REQ-001-TASK-001", "unverified_items": []},
+            {"status": "failed", "evidence_ref": "EV-REQ-20260702-001-TASK-20260702-001", "unverified_items": []},
             "failed",
             [],
             "validation_not_passed",
@@ -179,7 +183,7 @@ def test_plan_version_archive_blocks_waiting_handoff(tmp_path: Path) -> None:
         (
             {
                 "status": "passed",
-                "evidence_ref": "EV-REQ-001-TASK-001",
+                "evidence_ref": "EV-REQ-20260702-001-TASK-20260702-001",
                 "unverified_items": ["manual check"],
             },
             "passed",
@@ -208,7 +212,7 @@ def test_plan_version_archive_blocks_incomplete_validation(
         plan_version_archive(
             tmp_path,
             version="1.0.0",
-            requirement_ids=["REQ-001"],
+            requirement_ids=["REQ-20260702-001"],
             archive_authorization_note="用户确认版本可以归档。",
             archived_at="2026-07-01",
         )
@@ -221,19 +225,19 @@ def test_plan_version_archive_blocks_missing_evidence_file(tmp_path: Path) -> No
     create_workspace(tmp_path)
     write_closed_requirement(tmp_path)
     write_done_task(tmp_path)
-    (tmp_path / "docs" / "active" / "REQ-001-TASK-001" / "evidence.yaml").unlink()
+    (tmp_path / "docs" / "active" / "REQ-20260702-001-TASK-20260702-001" / "evidence.yaml").unlink()
 
     with pytest.raises(WorkbenchError) as exc_info:
         plan_version_archive(
             tmp_path,
             version="1.0.0",
-            requirement_ids=["REQ-001"],
+            requirement_ids=["REQ-20260702-001"],
             archive_authorization_note="用户确认版本可以归档。",
             archived_at="2026-07-01",
         )
 
     assert exc_info.value.code is ErrorCode.VALIDATION_ERROR
-    assert "missing_evidence_record: EV-REQ-001-TASK-001" in exc_info.value.message
+    assert "missing_evidence_record: EV-REQ-20260702-001-TASK-20260702-001" in exc_info.value.message
 
 
 def test_plan_version_archive_blocks_rejected_handoff(tmp_path: Path) -> None:
@@ -245,7 +249,7 @@ def test_plan_version_archive_blocks_rejected_handoff(tmp_path: Path) -> None:
         plan_version_archive(
             tmp_path,
             version="1.0.0",
-            requirement_ids=["REQ-001"],
+            requirement_ids=["REQ-20260702-001"],
             archive_authorization_note="用户确认版本可以归档。",
             archived_at="2026-07-01",
         )
@@ -263,7 +267,7 @@ def test_plan_version_archive_blocks_task_not_closed(tmp_path: Path) -> None:
         plan_version_archive(
             tmp_path,
             version="1.0.0",
-            requirement_ids=["REQ-001"],
+            requirement_ids=["REQ-20260702-001"],
             archive_authorization_note="用户确认版本可以归档。",
             archived_at="2026-07-01",
         )
@@ -288,12 +292,12 @@ def test_plan_version_archive_allows_obsolete_task_without_done_evidence(
     plan = plan_version_archive(
         tmp_path,
         version="1.0.0",
-        requirement_ids=["REQ-001"],
+        requirement_ids=["REQ-20260702-001"],
         archive_authorization_note="用户确认版本可以归档。",
         archived_at="2026-07-01",
     )
 
-    assert {entry.source_id for entry in plan.entries} == {"REQ-001", "REQ-001-TASK-001"}
+    assert {entry.source_id for entry in plan.entries} == {"REQ-20260702-001", "REQ-20260702-001-TASK-20260702-001"}
 
 
 def test_plan_version_archive_rejects_obsolete_task_without_reason(tmp_path: Path) -> None:
@@ -310,7 +314,7 @@ def test_plan_version_archive_rejects_obsolete_task_without_reason(tmp_path: Pat
         plan_version_archive(
             tmp_path,
             version="1.0.0",
-            requirement_ids=["REQ-001"],
+            requirement_ids=["REQ-20260702-001"],
             archive_authorization_note="用户确认版本可以归档。",
             archived_at="2026-07-01",
         )
@@ -332,7 +336,7 @@ def test_plan_version_archive_rejects_version_path_escape(
         plan_version_archive(
             tmp_path,
             version=bad_version,
-            requirement_ids=["REQ-001"],
+            requirement_ids=["REQ-20260702-001"],
             archive_authorization_note="用户确认版本可以归档。",
             archived_at="2026-07-01",
         )
@@ -366,26 +370,26 @@ def test_plan_version_archive_rejects_duplicate_sources(tmp_path: Path) -> None:
         plan_version_archive(
             tmp_path,
             version="1.0.0",
-            requirement_ids=["REQ-001", "REQ-001"],
+            requirement_ids=["REQ-20260702-001", "REQ-20260702-001"],
             archive_authorization_note="用户确认版本可以归档。",
             archived_at="2026-07-01",
         )
 
     assert exc_info.value.code is ErrorCode.VALIDATION_ERROR
-    assert "duplicate_archive_source: requirement REQ-001" in exc_info.value.message
+    assert "duplicate_archive_source: requirement REQ-20260702-001" in exc_info.value.message
 
 
-def test_plan_version_archive_rejects_duplicate_archive_paths(tmp_path: Path) -> None:
+def test_plan_version_archive_rejects_requirement_id_that_looks_like_task_id(tmp_path: Path) -> None:
     create_workspace(tmp_path)
     write_yaml(
-        tmp_path / "docs" / "active" / "REQ-001-TASK-001" / "requirement.yaml",
+        tmp_path / "docs" / "active" / "REQ-20260702-001-TASK-20260702-001" / "requirement.yaml",
         {
             "schema_version": "0.1",
-            "id": "REQ-001-TASK-001",
+            "id": "REQ-20260702-001-TASK-20260702-001",
             "title": "异常同名需求",
             "goal": "验证路径冲突。",
             "readiness": {"status": "readable", "confirmed_by_user": True},
-            "task_refs": ["REQ-001-TASK-001"],
+            "task_refs": ["REQ-20260702-001-TASK-20260702-001"],
             "confirmations": [{"type": "requirement_closure", "source": "user"}],
         },
     )
@@ -395,32 +399,32 @@ def test_plan_version_archive_rejects_duplicate_archive_paths(tmp_path: Path) ->
         plan_version_archive(
             tmp_path,
             version="1.0.0",
-            requirement_ids=["REQ-001-TASK-001"],
+            requirement_ids=["REQ-20260702-001-TASK-20260702-001"],
             archive_authorization_note="用户确认版本可以归档。",
             archived_at="2026-07-01",
         )
 
     assert exc_info.value.code is ErrorCode.VALIDATION_ERROR
-    assert "duplicate_archive_path: docs/archive/1.0.0/REQ-001-TASK-001" in exc_info.value.message
+    assert "invalid_requirement_package: REQ-20260702-001-TASK-20260702-001" in exc_info.value.message
 
 
 def test_plan_version_archive_rejects_existing_archive_target(tmp_path: Path) -> None:
     create_workspace(tmp_path)
     write_closed_requirement(tmp_path)
     write_done_task(tmp_path)
-    (tmp_path / "docs" / "archive" / "1.0.0" / "REQ-001").mkdir(parents=True)
+    (tmp_path / "docs" / "archive" / "1.0.0" / "REQ-20260702-001").mkdir(parents=True)
 
     with pytest.raises(WorkbenchError) as exc_info:
         plan_version_archive(
             tmp_path,
             version="1.0.0",
-            requirement_ids=["REQ-001"],
+            requirement_ids=["REQ-20260702-001"],
             archive_authorization_note="用户确认版本可以归档。",
             archived_at="2026-07-01",
         )
 
     assert exc_info.value.code is ErrorCode.VALIDATION_ERROR
-    assert "archive_target_exists: docs/archive/1.0.0/REQ-001" in exc_info.value.message
+    assert "archive_target_exists: docs/archive/1.0.0/REQ-20260702-001" in exc_info.value.message
 
 
 def test_plan_version_archive_rejects_non_empty_version_directory_without_manifest(
@@ -437,7 +441,7 @@ def test_plan_version_archive_rejects_non_empty_version_directory_without_manife
         plan_version_archive(
             tmp_path,
             version="1.0.0",
-            requirement_ids=["REQ-001"],
+            requirement_ids=["REQ-20260702-001"],
             archive_authorization_note="用户确认版本可以归档。",
             archived_at="2026-07-01",
         )
@@ -454,15 +458,15 @@ def test_archive_version_dry_run_does_not_move_or_write_manifest(tmp_path: Path)
     result = archive_version(
         tmp_path,
         version="1.0.0",
-        requirement_ids=["REQ-001"],
+        requirement_ids=["REQ-20260702-001"],
         archive_authorization_note="用户确认版本可以归档。",
         archived_at="2026-07-01",
         dry_run=True,
     )
 
     assert result.dry_run is True
-    assert (tmp_path / "docs" / "active" / "REQ-001" / "requirement.yaml").exists()
-    assert (tmp_path / "docs" / "active" / "REQ-001-TASK-001" / "task.yaml").exists()
+    assert (tmp_path / "docs" / "active" / "REQ-20260702-001" / "requirement.yaml").exists()
+    assert (tmp_path / "docs" / "active" / "REQ-20260702-001-TASK-20260702-001" / "task.yaml").exists()
     assert not (tmp_path / "docs" / "archive" / "1.0.0" / "archive.yaml").exists()
 
 
@@ -476,7 +480,7 @@ def test_archive_version_moves_closed_requirement_tasks_and_writes_manifest(
     result = archive_version(
         tmp_path,
         version="1.0.0",
-        requirement_ids=["REQ-001"],
+        requirement_ids=["REQ-20260702-001"],
         archive_authorization_note="用户确认版本可以归档。",
         archived_at="2026-07-01",
     )
@@ -486,14 +490,14 @@ def test_archive_version_moves_closed_requirement_tasks_and_writes_manifest(
 
     assert result.dry_run is False
     assert manifest_path in result.paths
-    assert not (tmp_path / "docs" / "active" / "REQ-001").exists()
-    assert not (tmp_path / "docs" / "active" / "REQ-001-TASK-001").exists()
-    assert (tmp_path / "docs" / "archive" / "1.0.0" / "REQ-001" / "requirement.yaml").exists()
-    assert (tmp_path / "docs" / "archive" / "1.0.0" / "REQ-001-TASK-001" / "task.yaml").exists()
+    assert not (tmp_path / "docs" / "active" / "REQ-20260702-001").exists()
+    assert not (tmp_path / "docs" / "active" / "REQ-20260702-001-TASK-20260702-001").exists()
+    assert (tmp_path / "docs" / "archive" / "1.0.0" / "REQ-20260702-001" / "requirement.yaml").exists()
+    assert (tmp_path / "docs" / "archive" / "1.0.0" / "REQ-20260702-001-TASK-20260702-001" / "task.yaml").exists()
     assert manifest["version"] == "1.0.0"
     assert manifest["authorization"]["type"] == "archive_authorization"
     assert manifest["authorization"]["note"] == "用户确认版本可以归档。"
-    assert {entry["source_id"] for entry in manifest["entries"]} == {"REQ-001", "REQ-001-TASK-001"}
+    assert {entry["source_id"] for entry in manifest["entries"]} == {"REQ-20260702-001", "REQ-20260702-001-TASK-20260702-001"}
 
 
 def test_archive_version_rolls_back_moved_packages_when_move_fails(
@@ -521,13 +525,13 @@ def test_archive_version_rolls_back_moved_packages_when_move_fails(
         archive_version(
             tmp_path,
             version="1.0.0",
-            requirement_ids=["REQ-001"],
+            requirement_ids=["REQ-20260702-001"],
             archive_authorization_note="用户确认版本可以归档。",
             archived_at="2026-07-01",
         )
 
     assert exc_info.value.code is ErrorCode.IO_ERROR
     assert "archive_write_failed" in exc_info.value.message
-    assert (tmp_path / "docs" / "active" / "REQ-001" / "requirement.yaml").exists()
-    assert (tmp_path / "docs" / "active" / "REQ-001-TASK-001" / "task.yaml").exists()
+    assert (tmp_path / "docs" / "active" / "REQ-20260702-001" / "requirement.yaml").exists()
+    assert (tmp_path / "docs" / "active" / "REQ-20260702-001-TASK-20260702-001" / "task.yaml").exists()
     assert not (tmp_path / "docs" / "archive" / "1.0.0" / "archive.yaml").exists()

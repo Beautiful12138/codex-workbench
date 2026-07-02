@@ -11,7 +11,9 @@
 - Workbench 运行期 baseline。
 - `codex_workbench` Python CLI 与 schema 源码。
 
-`CURRENT.md` 是入口卡，只提供第一眼恢复提示；它不作为单任务锁。真实工作对象必须从用户请求、显式包路径、`docs/generated/recovery.md`、CLI 参数或包 YAML 中选择。
+`AGENTS.md` 承接稳定入口规则：说明本工作台是什么、如何读取、哪些文件不能手改、什么时候可以写状态。
+
+`CURRENT.md` 是 CLI 生成的动态当前工作面板，展示最近活跃任务；它不作为单任务锁。真实工作对象必须从用户请求、显式包路径、`docs/generated/recovery.md`、CLI 参数或包 YAML 中选择。
 
 ## 启动读取顺序
 
@@ -49,12 +51,12 @@
 多需求、多任务并存时，按以下优先级选择工作对象：
 
 1. 显式路径优先：用户给出 `docs/active/...`、文件路径、任务包路径或服务路径时，以它为候选对象。
-2. 显式 ID 其次：用户点名 `REQ-*`、`REQ-*-TASK-*`、`EV-*`、action/change/decision/suspicion ID 时，读取对应包。
+2. 显式 ID 其次：用户点名 `REQ-YYYYMMDD-NNN`、`REQ-YYYYMMDD-NNN-TASK-YYYYMMDD-NNN`、`EV-*`、action/change/decision/suspicion ID 时，读取对应包。
 3. 用户语义匹配：用户说“刚才那个任务”“这个需求”“某服务的问题”时，用 `docs/generated/recovery.md` 和包 YAML 对齐。
 4. recovery 辅助：没有明确对象时，先读 `docs/generated/recovery.md`，从 active task、blocked、next_step、service_refs 和 conflicts 中选择。
 5. 无法唯一判断时，保持只读，不写状态，向用户问一个聚焦问题。
 
-不要因为 `CURRENT.md` 没有 current_task 就认为没有可推进任务；也不要因为 `CURRENT.md` 提到某个对象就忽略用户当前明确指定的对象。
+不要因为 `CURRENT.md` 没有某个任务就认为没有可推进任务；也不要因为 `CURRENT.md` 提到某个对象就忽略用户当前明确指定的对象。
 
 ## 读取深度
 
@@ -75,7 +77,7 @@
 - `docs/active/*/*.yaml`：requirement、task、evidence 的机器状态真源。
 - `docs/active/*/*.md`：给人和 Codex 的解释层，不覆盖 YAML。
 - `services/registry.yaml`：服务登记和只读状态输入。
-- `docs/generated/index.md` / `docs/generated/recovery.md`：可重建视图，不覆盖真源。
+- `CURRENT.md` / `docs/generated/index.md` / `docs/generated/recovery.md`：可重建视图，不覆盖真源。
 - `docs/archive/`：版本化冷历史，默认不作为当前上下文。
 - `docs/actions/`、`docs/changes/`、`docs/decisions/`、`docs/suspicions/`：非任务动作、范围变化、长期决策和疑点线索。
 

@@ -14,6 +14,8 @@ from .workspace import resolve_workspace_path
 
 INDEX_PATH = "docs/generated/index.md"
 RECOVERY_PATH = "docs/generated/recovery.md"
+CURRENT_PATH = "CURRENT.md"
+CURRENT_TASK_LIMIT = 20
 RECOVERY_TASK_LIMIT = 5
 RECOVERY_REQUIREMENT_LIMIT = 5
 RECOVERY_EVIDENCE_LIMIT = 5
@@ -25,6 +27,7 @@ REDACT_MARKERS = ("token=", "password=", "secret=", "api_key=", "apikey=")
 class IndexWriteResult:
     paths: tuple[Path, ...]
     dry_run: bool
+    current_text: str
     index_text: str
     recovery_text: str
     conflicts: list[str]
@@ -84,18 +87,22 @@ def generate_index_views(
 ) -> IndexWriteResult:
     root = Path(workspace_root).expanduser().resolve()
     snapshot = _collect_snapshot(root)
+    current_text = _render_current(snapshot)
     index_text = _render_index(snapshot)
     recovery_text = _render_recovery(snapshot)
+    current_path = resolve_workspace_path(root, CURRENT_PATH)
     index_path = resolve_workspace_path(root, INDEX_PATH)
     recovery_path = resolve_workspace_path(root, RECOVERY_PATH)
 
     if not dry_run:
+        write_text_utf8_atomic(current_path, current_text)
         write_text_utf8_atomic(index_path, index_text)
         write_text_utf8_atomic(recovery_path, recovery_text)
 
     return IndexWriteResult(
-        paths=(index_path, recovery_path),
+        paths=(current_path, index_path, recovery_path),
         dry_run=dry_run,
+        current_text=current_text,
         index_text=index_text,
         recovery_text=recovery_text,
         conflicts=snapshot.conflicts,
@@ -107,6 +114,7 @@ def check_generated_views(workspace_root: str | Path) -> IndexCheckResult:
     expected = generate_index_views(root, dry_run=True)
     messages: list[str] = []
     for relative_path, expected_text in (
+        (CURRENT_PATH, expected.current_text),
         (INDEX_PATH, expected.index_text),
         (RECOVERY_PATH, expected.recovery_text),
     ):
@@ -386,6 +394,75 @@ def _archive_manifest_conflicts(archives: list[_YamlRecord]) -> list[str]:
     return conflicts
 
 
+def _render_current(snapshot: _IndexSnapshot) -> str:
+    lines = [
+        "# CURRENT",
+        "",
+        "> generated workbench dashboard; YAML remains the source of truth.",
+        "",
+        "## 最近工作",
+        "",
+        "| 最近更新 | 需求 | 任务 | 阶段 | 包内容 | 验证 | 下一步 |",
+        "|---|---|---|---|---|---|---|",
+    ]
+    active_tasks = [
+        task
+        for task in snapshot.tasks
+        if str(task.data.get("stage", "") if task.data else "") not in {"done", "obsolete"}
+    ]
+    active_tasks = sorted(
+        active_tasks,
+        key=lambda item: (
+            _record_timestamp(item, "updated_at"),
+            _record_timestamp(item, "created_at"),
+            item.id,
+        ),
+        reverse=True,
+    )
+    if not active_tasks:
+        lines.append("| - | - | - | - | - | - | no active tasks |")
+    for task in active_tasks[:CURRENT_TASK_LIMIT]:
+        data = task.data or {}
+        requirement_id = str(data.get("requirement_id", "")).strip() or "-"
+        updated_at = _record_timestamp(task, "updated_at") or "-"
+        stage = str(data.get("stage", "unknown")).strip() or "unknown"
+        validation = data.get("validation", {})
+        validation_status = "not_started"
+        if isinstance(validation, dict):
+            validation_status = str(validation.get("status", "not_started")).strip() or "not_started"
+        next_step = str(data.get("next_step", "")).strip() or "-"
+        task_label = f"{task.id} {task.title}".strip()
+        lines.append(
+            "| "
+            + " | ".join(
+                [
+                    _table_cell(updated_at),
+                    _table_cell(requirement_id),
+                    _table_cell(task_label),
+                    _table_cell(stage),
+                    _table_cell(_task_packet_status(task)),
+                    _table_cell(validation_status),
+                    _table_cell(next_step),
+                ]
+            )
+            + " |"
+        )
+    remaining = len(active_tasks) - CURRENT_TASK_LIMIT
+    if remaining > 0:
+        lines.extend(["", f"> 还有 {remaining} 个 active task 未展示；查 `docs/generated/index.md`。"])
+    lines.extend(
+        [
+            "",
+            "## 读取边界",
+            "",
+            "- 本文件只展示最近工作面板，不是真源，也不作为单任务锁。",
+            "- 任务事实以 `docs/active/*/task.yaml` 为准。",
+            "- 查完整 active 目录看 `docs/generated/index.md`；续接和异常看 `docs/generated/recovery.md`。",
+        ]
+    )
+    return _final_newline(lines)
+
+
 def _render_index(snapshot: _IndexSnapshot) -> str:
     lines = [
         "# Active Index",
@@ -395,7 +472,7 @@ def _render_index(snapshot: _IndexSnapshot) -> str:
         "## Requirements",
         "",
     ]
-    lines.extend(_requirement_lines(snapshot.requirements))
+    lines.extend(_requirement_lines(snapshot.requirements, snapshot.tasks))
     lines.extend(["", "## Tasks", ""])
     lines.extend(_task_lines(snapshot.tasks))
     lines.extend(["", "## Services", ""])
@@ -427,7 +504,7 @@ def _render_recovery(snapshot: _IndexSnapshot) -> str:
         "",
         "> short generated view; open package YAML for source facts.",
         "",
-        "## Recovery",
+        "## 续接队列",
         "",
     ]
     active_tasks = [
@@ -524,14 +601,40 @@ def _task_recovery_line(task: _YamlRecord) -> str:
     return f"task `{task.id}` {task.title} [{stage}]{suffix}"
 
 
-def _requirement_lines(records: list[_YamlRecord]) -> list[str]:
+def _requirement_lines(records: list[_YamlRecord], tasks: list[_YamlRecord]) -> list[str]:
     if not records:
         return ["- none"]
     lines: list[str] = []
+    lines.extend(
+        [
+            "| 需求 | 标题 | readiness | 任务数 | 最近更新 |",
+            "|---|---|---|---:|---|",
+        ]
+    )
+    task_counts: dict[str, int] = {}
+    for task in tasks:
+        if not task.data:
+            continue
+        requirement_id = str(task.data.get("requirement_id", "")).strip()
+        if requirement_id:
+            task_counts[requirement_id] = task_counts.get(requirement_id, 0) + 1
     for record in sorted(records, key=lambda item: item.id):
         readiness = record.data.get("readiness", {}) if record.data else {}
         status = readiness.get("status", "unknown") if isinstance(readiness, dict) else "unknown"
-        lines.append(f"- `{record.id}` {record.title} [readiness={status}]")
+        updated_at = _record_timestamp(record, "updated_at") or "-"
+        lines.append(
+            "| "
+            + " | ".join(
+                [
+                    _table_cell(record.id),
+                    _table_cell(record.title),
+                    _table_cell(str(status)),
+                    str(task_counts.get(record.id, 0)),
+                    _table_cell(updated_at),
+                ]
+            )
+            + " |"
+        )
     return lines
 
 
@@ -539,17 +642,38 @@ def _task_lines(records: list[_YamlRecord]) -> list[str]:
     if not records:
         return ["- none"]
     lines: list[str] = []
+    lines.extend(
+        [
+            "| 需求 | 任务 | 标题 | 阶段 | 包内容 | 验证 | 最近更新 | 下一步 |",
+            "|---|---|---|---|---|---|---|---|",
+        ]
+    )
     for record in sorted(records, key=lambda item: item.id):
-        stage = record.data.get("stage", "unknown") if record.data else "unknown"
-        services = record.data.get("service_refs", []) if record.data else []
-        next_step = str(record.data.get("next_step", "")).strip() if record.data else ""
-        suffix_parts = []
-        if services:
-            suffix_parts.append(f"service_refs={', '.join(str(item) for item in services)}")
-        if next_step:
-            suffix_parts.append(f"next={next_step}")
-        suffix = f" {'; '.join(suffix_parts)}" if suffix_parts else ""
-        lines.append(f"- `{record.id}` {record.title} [{stage}]{suffix}")
+        data = record.data or {}
+        requirement_id = str(data.get("requirement_id", "")).strip() or "-"
+        stage = str(data.get("stage", "unknown")).strip() or "unknown"
+        validation = data.get("validation", {})
+        validation_status = "not_started"
+        if isinstance(validation, dict):
+            validation_status = str(validation.get("status", "not_started")).strip() or "not_started"
+        updated_at = _record_timestamp(record, "updated_at") or "-"
+        next_step = str(data.get("next_step", "")).strip() or "-"
+        lines.append(
+            "| "
+            + " | ".join(
+                [
+                    _table_cell(requirement_id),
+                    _table_cell(record.id),
+                    _table_cell(record.title),
+                    _table_cell(stage),
+                    _table_cell(_task_packet_status(record)),
+                    _table_cell(validation_status),
+                    _table_cell(updated_at),
+                    _table_cell(next_step),
+                ]
+            )
+            + " |"
+        )
     return lines
 
 
@@ -625,6 +749,37 @@ def _record_lines(records: list[_YamlRecord], *, include_title: bool) -> list[st
         title = f" {record.title}" if include_title and record.title else ""
         lines.append(f"- `{record.id}`{title}")
     return lines
+
+
+def _record_timestamp(record: _YamlRecord, field_name: str) -> str:
+    if not record.data:
+        return ""
+    value = record.data.get(field_name, "")
+    return str(value).strip() if value is not None else ""
+
+
+def _task_packet_status(task: _YamlRecord) -> str:
+    status_parts: list[str] = []
+    if _has_nonempty_file(task.path.parent / "review.md"):
+        status_parts.append("review")
+    if _has_nonempty_file(task.path.parent / "implementation.md"):
+        status_parts.append("implementation")
+    if _has_nonempty_file(task.path.parent / "evidence.md") or (task.path.parent / "evidence.yaml").exists():
+        status_parts.append("evidence")
+    if _has_nonempty_file(task.path.parent / "handoff.md"):
+        status_parts.append("handoff")
+    return ", ".join(status_parts) if status_parts else "-"
+
+
+def _has_nonempty_file(path: Path) -> bool:
+    try:
+        return path.is_file() and bool(read_text_utf8(path).strip())
+    except OSError:
+        return False
+
+
+def _table_cell(value: str) -> str:
+    return value.replace("|", "\\|").replace("\r", " ").replace("\n", " ").strip() or "-"
 
 
 def _conflict_lines(conflicts: list[str]) -> list[str]:

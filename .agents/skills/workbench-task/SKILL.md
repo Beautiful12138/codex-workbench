@@ -85,10 +85,10 @@ description: Use when Codex 需要在 codex-workbench 中处理材料、discover
 $env:PYTHONPATH='src'
 python -m codex_workbench material add MAT-001 --title "..." --source "..." --summary "..." --received-at "..."
 python -m codex_workbench discovery create DISC-001 --title "..." --material-ref MAT-001 --updated-at "..."
-python -m codex_workbench intake create REQ-001 --title "..." --goal "..." --material-ref MAT-001 --updated-at "..."
-python -m codex_workbench intake confirm REQ-001 --updated-at "..."
-python -m codex_workbench task create REQ-001-TASK-001 --requirement-id REQ-001 --title "..." --user-goal "..." --done "..." --next "..."
-python -m codex_workbench task prepare REQ-001-TASK-001 --working-scope "..." --risk-trigger "..."
-python -m codex_workbench task check REQ-001-TASK-001 --to in_progress
-python -m codex_workbench task set-stage REQ-001-TASK-001 --stage in_progress
+python -m codex_workbench intake create REQ-20260702-001 --title "..." --goal "..." --material-ref MAT-001 --updated-at "..."
+python -m codex_workbench intake confirm REQ-20260702-001 --updated-at "..."
+python -m codex_workbench task create REQ-20260702-001-TASK-20260702-001 --requirement-id REQ-20260702-001 --title "..." --user-goal "..." --done "..." --next "..."
+python -m codex_workbench task prepare REQ-20260702-001-TASK-20260702-001 --working-scope "..." --risk-trigger "..."
+python -m codex_workbench task check REQ-20260702-001-TASK-20260702-001 --to in_progress
+python -m codex_workbench task set-stage REQ-20260702-001-TASK-20260702-001 --stage in_progress
 ```

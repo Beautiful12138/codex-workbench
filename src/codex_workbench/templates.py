@@ -36,6 +36,7 @@ class TaskTemplateContext:
     user_goal: str
     done_means: list[str]
     current_next_step: str
+    created_at: str
     updated_at: str
     allowed_scope: list[str] = field(default_factory=list)
     not_allowed_scope: list[str] = field(default_factory=list)
@@ -51,6 +52,7 @@ class TaskTemplateContext:
         _require(self.requirement_id, "requirement_id")
         _require(self.user_goal, "user_goal")
         _require(self.current_next_step, "current_next_step")
+        _require(self.created_at, "created_at")
         _require(self.updated_at, "updated_at")
         if not _list(self.done_means):
             raise TemplateError("缺少必填模板字段：done_means")
@@ -62,6 +64,7 @@ class RequirementTemplateContext:
     title: str
     goal: str
     acceptance: list[str]
+    created_at: str
     updated_at: str
     non_goals: list[str] = field(default_factory=list)
     task_refs: list[str] = field(default_factory=list)
@@ -79,6 +82,7 @@ class RequirementTemplateContext:
         _require(self.requirement_id, "requirement_id")
         _require(self.title, "title")
         _require(self.goal, "goal")
+        _require(self.created_at, "created_at")
         _require(self.updated_at, "updated_at")
         if not _list(self.acceptance):
             raise TemplateError("缺少必填模板字段：acceptance")
@@ -218,6 +222,8 @@ def render_task_package(context: TaskTemplateContext) -> dict[str, str]:
         "id": context.task_id,
         "requirement_id": context.requirement_id,
         "title": context.title,
+        "created_at": context.created_at,
+        "updated_at": context.updated_at,
         "stage": context.stage,
         "next_step": context.current_next_step,
         "process_level": context.process_level,
@@ -238,6 +244,7 @@ def render_requirement_package(context: RequirementTemplateContext) -> dict[str,
         "id": context.requirement_id,
         "title": context.title,
         "goal": context.goal,
+        "created_at": context.created_at,
         "updated_at": context.updated_at,
         "acceptance": _list(context.acceptance),
     }

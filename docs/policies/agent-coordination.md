@@ -5,11 +5,11 @@
 ## 基本分工
 
 - `AGENTS.md`：热路径入口和最高频判断。
-- `CURRENT.md`：入口卡。
+- `CURRENT.md`：CLI 生成的最近工作面板。
 - policy：运行规则和反例。
 - skills：可执行操作规程。
 - CLI/schema：可靠写入和门禁。
-- generated views：恢复和检索。
+- generated views：最近工作、完整活动目录、续接和异常检索。
 - 用户确认：需求、范围、风险、验收、关闭和归档的高层事实来源。
 
 ## skills
@@ -34,7 +34,7 @@ skill 不替代包 YAML、evidence、CLI 或用户确认。skill 应告诉 Codex
 
 ## 接续
 
-新窗口先读 `AGENTS.md`、`CURRENT.md` 和 `docs/generated/recovery.md`。若选择到 task，再读 task YAML/Markdown。若要推进阶段、验证或归档，再读对应 evidence、handoff、policy。
+新窗口先读 `AGENTS.md`、`CURRENT.md` 和 `docs/generated/recovery.md`。若选择到 task，再读 task YAML/Markdown；若需要完整活动盘点，再读 `docs/generated/index.md`。若要推进阶段、验证或归档，再读对应 evidence、handoff、policy。
 
 不要把旧聊天摘要覆盖状态真源。旧摘要只能作为线索。
 
@@ -45,4 +45,4 @@ skill 不替代包 YAML、evidence、CLI 或用户确认。skill 应告诉 Codex
 - 不预生成空 review、implementation、evidence 或 change。
 - 不让 doctor、hook 或 generated view 自动推进阶段。
 
-需要长期接续时，优先写入真实 task `next_step`、evidence、action、change、decision 或 suspicion，而不是堆长 `CURRENT.md`。
+需要长期接续时，优先写入真实 task `next_step`、evidence、action、change、decision 或 suspicion，再由 CLI 刷新 `CURRENT.md` 和 generated views。

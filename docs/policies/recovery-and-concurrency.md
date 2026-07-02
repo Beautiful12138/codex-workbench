@@ -5,8 +5,10 @@
 ## 核心原则
 
 - 文件包是隔离单元，不是 Git 分支。
-- `CURRENT.md` 是入口卡，不是单任务锁。
-- `docs/generated/recovery.md` 是短恢复视图，不是状态真源。
+- `AGENTS.md` 是稳定入口规则卡。
+- `CURRENT.md` 是 CLI 生成的最近工作面板，不是单任务锁。
+- `docs/generated/index.md` 是完整活动目录，不是状态真源。
+- `docs/generated/recovery.md` 是续接和异常队列，不是状态真源。
 - 包 YAML 是机器状态真源；Markdown 是解释层。
 - 工作对象选择要保守、可解释、可恢复。
 
@@ -14,15 +16,15 @@
 
 1. **显式路径优先**：用户给出 `docs/active/...`、任务包路径、需求包路径、服务路径或具体文件时，先读取该路径。
 2. **显式 ID 优先于推断**：用户给出 `REQ-*`、`REQ-*-TASK-*`、`EV-*`、`ACT-*`、`CHG-*`、`DEC-*` 或 `SUS-*` 时，按 ID 找包或记录。
-3. **用户语义匹配**：用户说“刚才那个任务”“这个需求”“某服务的问题”时，用 generated recovery 和相关包 YAML 对齐。
-4. **generated recovery 辅助**：没有明确对象时，读取 `docs/generated/recovery.md`，优先看 active task、stage、next_step、service_refs、blocked 状态和 conflicts。
+3. **用户语义匹配**：用户说“刚才那个任务”“这个需求”“某服务的问题”时，用 generated views 和相关包 YAML 对齐。
+4. **generated views 辅助**：没有明确对象时，先看 `CURRENT.md` 最近活动，再读取 `docs/generated/recovery.md` 的续接队列和异常；需要完整目录时读 `docs/generated/index.md`。
 5. **无法唯一判断则暂停**：如果继续会写状态、改代码、推进阶段或得出完成结论，而对象仍不唯一，只问一个聚焦问题。
 
 ## 读取模式
 
 ### 恢复现场
 
-先读 `AGENTS.md` 和 `CURRENT.md`，再读 `docs/generated/recovery.md`。如果 recovery 指向 active task，再读该 task 的 YAML 和 Markdown。
+先读 `AGENTS.md` 和 `CURRENT.md`，再读 `docs/generated/recovery.md`。如果 recovery 指向 active task，再读该 task 的 YAML 和 Markdown。需要盘点全部活动需求和任务时，再读 `docs/generated/index.md`。
 
 ### 推进任务
 
@@ -34,28 +36,28 @@
 
 ### 多任务切换
 
-切换任务不是修改 `CURRENT.md` 的必需动作。只要用户明确目标，或 recovery 能唯一定位，就读取对应包继续。若需要跨会话长期接续，可更新 task `next_step` 或生成视图。
+切换任务不是手改 `CURRENT.md` 的理由。只要用户明确目标，或 generated views 能唯一定位，就读取对应包继续。若需要跨会话长期接续，优先更新 task `next_step`、evidence、action、change、decision 或 suspicion，再由 CLI 刷新生成视图。
 
 ## recovery 视图应提供的信息
 
-`docs/generated/recovery.md` 应尽量短，但要能帮助选择工作对象：
+`CURRENT.md` 应保持短，只展示最近更新的有限数量活动任务；`docs/generated/index.md` 可列完整活动目录；`docs/generated/recovery.md` 应聚焦续接和异常：
 
-- active requirement 和 active task
+- 需要续接的 active requirement 和 active task
 - task stage
 - next_step
 - service_refs
 - blocked 或 verification 状态
 - 最近 evidence 摘要
 - conflicts
-- 超出显示上限时提示还有更多 active tasks
+- generated view stale 或真源冲突
 
-recovery 不应包含长正文、敏感原始材料或完整 evidence 输出。
+generated views 不应包含长正文、敏感原始材料或完整 evidence 输出。
 
 ## archive 与当前恢复
 
 归档后的 requirement/task 是冷历史。默认恢复现场时不展开 archive；只有用户查询历史、需要恢复旧版本、或执行 archive action 时读取。
 
-generated index 可以列 archive 摘要，但 recovery 默认聚焦 active 工作。
+generated index 可以列 archive 摘要，但 current 和 recovery 默认聚焦 active 工作。
 
 ## 服务并发
 
