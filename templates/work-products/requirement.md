@@ -1,5 +1,7 @@
 # {{ requirement_id }} {{ title }}
 
+<!-- 默认章节可按当前需求删改、合并或重命名；不要为了模板复述 requirement.yaml。 -->
+
 ## 背景
 
 ## 目标

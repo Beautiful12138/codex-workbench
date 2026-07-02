@@ -96,19 +96,27 @@ def test_render_task_package_keeps_markdown_skeleton_and_yaml_truth() -> None:
     assert task_yaml["next_step"] == "先写失败测试。"
     assert task_yaml["service_refs"] == []
     markdown = files["docs/active/REQ-20260702-001-TASK-20260702-001/task.md"]
+    assert "不要为了模板复述 task.yaml" in markdown
     assert "让 Codex 快速进入任务目标。" not in markdown
     assert "第一屏先看到目标" not in markdown
     assert "渲染任务包 Markdown。" not in markdown
     assert "先写失败测试。" not in markdown
-    assert files["docs/active/REQ-20260702-001-TASK-20260702-001/task.md"].index("## 用户目标") < files[
-        "docs/active/REQ-20260702-001-TASK-20260702-001/task.md"
-    ].index("## 完成口径")
-    assert files["docs/active/REQ-20260702-001-TASK-20260702-001/task.md"].index("## 完成口径") < files[
-        "docs/active/REQ-20260702-001-TASK-20260702-001/task.md"
-    ].index("## 范围")
-    assert files["docs/active/REQ-20260702-001-TASK-20260702-001/task.md"].index("## 范围") < files[
-        "docs/active/REQ-20260702-001-TASK-20260702-001/task.md"
-    ].index("## 实现提示")
+    expected_sections = [
+        "## 用户目标",
+        "## 完成口径",
+        "## 范围",
+        "## 非范围",
+        "## 服务上下文",
+        "## 下一步",
+        "## 实现提示",
+        "## 验证要求",
+        "## 暂停条件",
+        "## 备注",
+    ]
+    assert all(section in markdown for section in expected_sections)
+    assert [markdown.index(section) for section in expected_sections] == sorted(
+        markdown.index(section) for section in expected_sections
+    )
 
 
 def test_render_task_package_omits_empty_ceremony() -> None:
@@ -182,6 +190,7 @@ def test_render_requirement_evidence_and_action_are_minimal_and_stable() -> None
     action_yaml = yaml.safe_load(action_yaml)
     assert "## 目标" in requirement_md
     assert "## 验收标准" in requirement_md
+    assert "不要为了模板复述 requirement.yaml" in requirement_md
     assert "让 Codex 专注用户任务。" not in requirement_md
     assert "模板输出稳定。" not in requirement_md
     assert "pytest passed" not in evidence_md
