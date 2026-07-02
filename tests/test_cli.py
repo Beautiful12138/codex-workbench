@@ -63,7 +63,7 @@ def create_task_via_cli(root: Path, extra_args: list[str] | None = None):
         [
             "task",
             "create",
-            "TASK-001",
+            "REQ-001-TASK-001",
             "--requirement-id",
             "REQ-001",
             "--title",
@@ -108,7 +108,7 @@ def test_index_generate_command_writes_views_and_check_detects_stale(tmp_path: P
         [
             "task",
             "create",
-            "TASK-001",
+            "REQ-001-TASK-001",
             "--requirement-id",
             "REQ-001",
             "--title",
@@ -190,13 +190,14 @@ def test_index_generate_dry_run_does_not_write_views(tmp_path: Path) -> None:
 def test_index_cli_reports_conflicts(tmp_path: Path) -> None:
     create_workspace(tmp_path)
     write_requirement(tmp_path)
-    task_dir = tmp_path / "docs" / "active" / "TASK-001"
+    task_dir = tmp_path / "docs" / "active" / "REQ-001-TASK-001"
     task_dir.mkdir(parents=True)
     (task_dir / "task.yaml").write_text(
         yaml.safe_dump(
             {
                 "schema_version": "0.1",
-                "id": "TASK-001",
+                "id": "REQ-001-TASK-001",
+                "requirement_id": "REQ-001",
                 "title": "冲突任务",
                 "stage": "in_progress",
                 "process_level": "standard",
@@ -230,9 +231,9 @@ def test_index_cli_reports_conflicts(tmp_path: Path) -> None:
     )
 
     assert generate.exit_code == 0
-    assert "conflict: unknown_service_ref: TASK-001 -> missing-service" in combined_output(generate)
+    assert "conflict: unknown_service_ref: REQ-001-TASK-001 -> missing-service" in combined_output(generate)
     assert check.exit_code != 0
-    assert "conflict: unknown_service_ref: TASK-001 -> missing-service" in combined_output(check)
+    assert "conflict: unknown_service_ref: REQ-001-TASK-001 -> missing-service" in combined_output(check)
 
 
 def test_index_cli_reports_bad_yaml(tmp_path: Path) -> None:
@@ -310,7 +311,7 @@ def test_task_create_command_writes_package(tmp_path: Path) -> None:
         [
             "task",
             "create",
-            "TASK-001",
+            "REQ-001-TASK-001",
             "--requirement-id",
             "REQ-001",
             "--title",
@@ -331,15 +332,15 @@ def test_task_create_command_writes_package(tmp_path: Path) -> None:
     )
 
     assert result.exit_code == 0
-    assert "created docs/active/TASK-001/task.yaml" in result.output
+    assert "created docs/active/REQ-001-TASK-001/task.yaml" in result.output
     assert "updated docs/active/REQ-001/requirement.yaml" in result.output
     assert_markdown_template_hint(result.output)
     task_yaml = yaml.safe_load(
-        (tmp_path / "docs" / "active" / "TASK-001" / "task.yaml").read_text(
+        (tmp_path / "docs" / "active" / "REQ-001-TASK-001" / "task.yaml").read_text(
             encoding="utf-8"
         )
     )
-    task_md = (tmp_path / "docs" / "active" / "TASK-001" / "task.md").read_text(
+    task_md = (tmp_path / "docs" / "active" / "REQ-001-TASK-001" / "task.md").read_text(
         encoding="utf-8"
     )
     assert task_yaml["next_step"] == "运行测试。"
@@ -357,7 +358,7 @@ def test_task_create_dry_run_does_not_write_package(tmp_path: Path) -> None:
         [
             "task",
             "create",
-            "TASK-001",
+            "REQ-001-TASK-001",
             "--requirement-id",
             "REQ-001",
             "--title",
@@ -377,8 +378,8 @@ def test_task_create_dry_run_does_not_write_package(tmp_path: Path) -> None:
     )
 
     assert result.exit_code == 0
-    assert "dry-run docs/active/TASK-001/task.yaml" in result.output
-    assert not (tmp_path / "docs" / "active" / "TASK-001").exists()
+    assert "dry-run docs/active/REQ-001-TASK-001/task.yaml" in result.output
+    assert not (tmp_path / "docs" / "active" / "REQ-001-TASK-001").exists()
 
 
 def test_task_create_rejects_done_stage(tmp_path: Path) -> None:
@@ -389,7 +390,7 @@ def test_task_create_rejects_done_stage(tmp_path: Path) -> None:
         [
             "task",
             "create",
-            "TASK-001",
+            "REQ-001-TASK-001",
             "--requirement-id",
             "REQ-001",
             "--title",
@@ -421,7 +422,7 @@ def test_task_create_rejects_missing_requirement_package(tmp_path: Path) -> None
         [
             "task",
             "create",
-            "TASK-001",
+            "REQ-001-TASK-001",
             "--requirement-id",
             "REQ-001",
             "--title",
@@ -441,7 +442,7 @@ def test_task_create_rejects_missing_requirement_package(tmp_path: Path) -> None
 
     assert result.exit_code != 0
     assert "missing_requirement_package: REQ-001" in combined_output(result)
-    assert not (tmp_path / "docs" / "active" / "TASK-001").exists()
+    assert not (tmp_path / "docs" / "active" / "REQ-001-TASK-001").exists()
 
 
 def test_task_create_rejects_unconfirmed_requirement_package(tmp_path: Path) -> None:
@@ -453,7 +454,7 @@ def test_task_create_rejects_unconfirmed_requirement_package(tmp_path: Path) -> 
         [
             "task",
             "create",
-            "TASK-001",
+            "REQ-001-TASK-001",
             "--requirement-id",
             "REQ-001",
             "--title",
@@ -475,7 +476,7 @@ def test_task_create_rejects_unconfirmed_requirement_package(tmp_path: Path) -> 
     output = combined_output(result)
     assert "requirement_not_readable" in output
     assert "missing_user_confirmation" in output
-    assert not (tmp_path / "docs" / "active" / "TASK-001").exists()
+    assert not (tmp_path / "docs" / "active" / "REQ-001-TASK-001").exists()
 
 
 def test_task_create_rejects_guarded_initial_stage(tmp_path: Path) -> None:
@@ -486,7 +487,7 @@ def test_task_create_rejects_guarded_initial_stage(tmp_path: Path) -> None:
         [
             "task",
             "create",
-            "TASK-001",
+            "REQ-001-TASK-001",
             "--requirement-id",
             "REQ-001",
             "--title",
@@ -518,7 +519,7 @@ def test_task_update_packet_preserves_body(tmp_path: Path) -> None:
         [
             "task",
             "create",
-            "TASK-001",
+            "REQ-001-TASK-001",
             "--requirement-id",
             "REQ-001",
             "--title",
@@ -541,7 +542,7 @@ def test_task_update_packet_preserves_body(tmp_path: Path) -> None:
         [
             "task",
             "update-packet",
-            "TASK-001",
+            "REQ-001-TASK-001",
             "--next",
             "继续实现 CLI。",
             "--workspace-root",
@@ -550,13 +551,13 @@ def test_task_update_packet_preserves_body(tmp_path: Path) -> None:
     )
 
     assert result.exit_code == 0
-    assert "updated docs/active/TASK-001/task.yaml" in result.output
+    assert "updated docs/active/REQ-001-TASK-001/task.yaml" in result.output
     task_yaml = yaml.safe_load(
-        (tmp_path / "docs" / "active" / "TASK-001" / "task.yaml").read_text(
+        (tmp_path / "docs" / "active" / "REQ-001-TASK-001" / "task.yaml").read_text(
             encoding="utf-8"
         )
     )
-    task_text = (tmp_path / "docs" / "active" / "TASK-001" / "task.md").read_text(encoding="utf-8")
+    task_text = (tmp_path / "docs" / "active" / "REQ-001-TASK-001" / "task.md").read_text(encoding="utf-8")
     assert task_yaml["next_step"] == "继续实现 CLI。"
     assert "## 用户目标" in task_text
     assert "## Current Packet" not in task_text
@@ -570,7 +571,7 @@ def test_task_update_packet_rejects_missing_next_step(tmp_path: Path) -> None:
         [
             "task",
             "create",
-            "TASK-001",
+            "REQ-001-TASK-001",
             "--requirement-id",
             "REQ-001",
             "--title",
@@ -593,7 +594,7 @@ def test_task_update_packet_rejects_missing_next_step(tmp_path: Path) -> None:
         [
             "task",
             "update-packet",
-            "TASK-001",
+            "REQ-001-TASK-001",
             "--next",
             " ",
             "--workspace-root",
@@ -613,7 +614,7 @@ def test_task_set_stage_rejects_done_without_evidence(tmp_path: Path) -> None:
         [
             "task",
             "create",
-            "TASK-001",
+            "REQ-001-TASK-001",
             "--requirement-id",
             "REQ-001",
             "--title",
@@ -636,7 +637,7 @@ def test_task_set_stage_rejects_done_without_evidence(tmp_path: Path) -> None:
         [
             "task",
             "set-stage",
-            "TASK-001",
+            "REQ-001-TASK-001",
             "--stage",
             "done",
             "--workspace-root",
@@ -658,7 +659,7 @@ def test_task_prepare_command_allows_in_progress_without_handwritten_yaml(tmp_pa
         [
             "task",
             "set-stage",
-            "TASK-001",
+            "REQ-001-TASK-001",
             "--stage",
             "in_progress",
             "--workspace-root",
@@ -670,7 +671,7 @@ def test_task_prepare_command_allows_in_progress_without_handwritten_yaml(tmp_pa
         [
             "task",
             "prepare",
-            "TASK-001",
+            "REQ-001-TASK-001",
             "--working-scope",
             "src/codex_workbench/cli.py",
             "--implementation-ref",
@@ -688,7 +689,7 @@ def test_task_prepare_command_allows_in_progress_without_handwritten_yaml(tmp_pa
         [
             "task",
             "set-stage",
-            "TASK-001",
+            "REQ-001-TASK-001",
             "--stage",
             "in_progress",
             "--workspace-root",
@@ -697,14 +698,14 @@ def test_task_prepare_command_allows_in_progress_without_handwritten_yaml(tmp_pa
     )
 
     task = yaml.safe_load(
-        (tmp_path / "docs" / "active" / "TASK-001" / "task.yaml").read_text(
+        (tmp_path / "docs" / "active" / "REQ-001-TASK-001" / "task.yaml").read_text(
             encoding="utf-8"
         )
     )
     assert before_prepare.exit_code != 0
     assert "missing_implementation_ready" in combined_output(before_prepare)
     assert prepare.exit_code == 0
-    assert "updated docs/active/TASK-001/task.yaml" in prepare.output
+    assert "updated docs/active/REQ-001-TASK-001/task.yaml" in prepare.output
     assert in_progress.exit_code == 0
     assert task["stage"] == "in_progress"
     assert task["implementation"]["ready"] is True
@@ -725,7 +726,7 @@ def test_task_review_and_implementation_create_use_package_local_docs(
         [
             "task",
             "review-create",
-            "TASK-001",
+            "REQ-001-TASK-001",
             "--workspace-root",
             str(tmp_path),
         ],
@@ -735,32 +736,32 @@ def test_task_review_and_implementation_create_use_package_local_docs(
         [
             "task",
             "implementation-create",
-            "TASK-001",
+            "REQ-001-TASK-001",
             "--workspace-root",
             str(tmp_path),
         ],
     )
 
-    task_yaml = tmp_path / "docs" / "active" / "TASK-001" / "task.yaml"
+    task_yaml = tmp_path / "docs" / "active" / "REQ-001-TASK-001" / "task.yaml"
     task = yaml.safe_load(task_yaml.read_text(encoding="utf-8"))
 
     assert review.exit_code == 0
     assert implementation.exit_code == 0
-    assert "updated docs/active/TASK-001/review.md" in review.output
-    assert "updated docs/active/TASK-001/implementation.md" in implementation.output
+    assert "updated docs/active/REQ-001-TASK-001/review.md" in review.output
+    assert "updated docs/active/REQ-001-TASK-001/implementation.md" in implementation.output
     assert_markdown_template_hint(review.output)
     assert_markdown_template_hint(implementation.output)
     assert task["review"] == {"status": "pending", "ref": "review.md"}
     assert task["implementation"]["ref"] == "implementation.md"
     review_text = (
-        tmp_path / "docs" / "active" / "TASK-001" / "review.md"
+        tmp_path / "docs" / "active" / "REQ-001-TASK-001" / "review.md"
     ).read_text(encoding="utf-8")
     implementation_text = (
-        tmp_path / "docs" / "active" / "TASK-001" / "implementation.md"
+        tmp_path / "docs" / "active" / "REQ-001-TASK-001" / "implementation.md"
     ).read_text(encoding="utf-8")
-    assert review_text.startswith("# TASK-001 评审\n")
+    assert review_text.startswith("# REQ-001-TASK-001 评审\n")
     assert "## 风险与暂停点" in review_text
-    assert implementation_text.startswith("# TASK-001 实现说明\n")
+    assert implementation_text.startswith("# REQ-001-TASK-001 实现说明\n")
     assert "## 验证计划" in implementation_text
 
 
@@ -768,7 +769,7 @@ def test_task_check_previews_stage_guard_without_writing(tmp_path: Path) -> None
     create_workspace(tmp_path)
     write_requirement(tmp_path)
     create_task_via_cli(tmp_path)
-    task_yaml = tmp_path / "docs" / "active" / "TASK-001" / "task.yaml"
+    task_yaml = tmp_path / "docs" / "active" / "REQ-001-TASK-001" / "task.yaml"
     before_check = task_yaml.read_text(encoding="utf-8")
 
     blocked = runner.invoke(
@@ -776,7 +777,7 @@ def test_task_check_previews_stage_guard_without_writing(tmp_path: Path) -> None
         [
             "task",
             "check",
-            "TASK-001",
+            "REQ-001-TASK-001",
             "--to",
             "in_progress",
             "--workspace-root",
@@ -784,7 +785,7 @@ def test_task_check_previews_stage_guard_without_writing(tmp_path: Path) -> None
         ],
     )
     assert blocked.exit_code == 1
-    assert "task check blocked TASK-001 -> in_progress" in blocked.output
+    assert "task check blocked REQ-001-TASK-001 -> in_progress" in blocked.output
     assert "missing_implementation_ready" in blocked.output
     assert task_yaml.read_text(encoding="utf-8") == before_check
 
@@ -793,7 +794,7 @@ def test_task_check_previews_stage_guard_without_writing(tmp_path: Path) -> None
         [
             "task",
             "prepare",
-            "TASK-001",
+            "REQ-001-TASK-001",
             "--working-scope",
             "src/codex_workbench/cli.py",
             "--workspace-root",
@@ -805,7 +806,7 @@ def test_task_check_previews_stage_guard_without_writing(tmp_path: Path) -> None
         [
             "task",
             "check",
-            "TASK-001",
+            "REQ-001-TASK-001",
             "--to",
             "in_progress",
             "--workspace-root",
@@ -815,7 +816,7 @@ def test_task_check_previews_stage_guard_without_writing(tmp_path: Path) -> None
 
     assert prepare.exit_code == 0
     assert allowed.exit_code == 0
-    assert "task check allowed TASK-001 -> in_progress" in allowed.output
+    assert "task check allowed REQ-001-TASK-001 -> in_progress" in allowed.output
     task = yaml.safe_load(task_yaml.read_text(encoding="utf-8"))
     assert task["stage"] == "draft"
 
@@ -832,7 +833,7 @@ def test_task_prepare_high_risk_requires_review_ref_and_risk_acceptance(
         [
             "task",
             "prepare",
-            "TASK-001",
+            "REQ-001-TASK-001",
             "--working-scope",
             "src/codex_workbench/cli.py",
             "--workspace-root",
@@ -844,7 +845,7 @@ def test_task_prepare_high_risk_requires_review_ref_and_risk_acceptance(
         [
             "task",
             "set-stage",
-            "TASK-001",
+            "REQ-001-TASK-001",
             "--stage",
             "in_progress",
             "--workspace-root",
@@ -856,7 +857,7 @@ def test_task_prepare_high_risk_requires_review_ref_and_risk_acceptance(
         [
             "task",
             "prepare",
-            "TASK-001",
+            "REQ-001-TASK-001",
             "--working-scope",
             "src/codex_workbench/cli.py",
             "--implementation-ref",
@@ -876,7 +877,7 @@ def test_task_prepare_high_risk_requires_review_ref_and_risk_acceptance(
         [
             "task",
             "set-stage",
-            "TASK-001",
+            "REQ-001-TASK-001",
             "--stage",
             "in_progress",
             "--workspace-root",
@@ -904,7 +905,7 @@ def test_task_set_stage_in_progress_rejects_unknown_service_ref(tmp_path: Path) 
         [
             "task",
             "prepare",
-            "TASK-001",
+            "REQ-001-TASK-001",
             "--working-scope",
             "src/codex_workbench/cli.py",
             "--workspace-root",
@@ -917,7 +918,7 @@ def test_task_set_stage_in_progress_rejects_unknown_service_ref(tmp_path: Path) 
         [
             "task",
             "set-stage",
-            "TASK-001",
+            "REQ-001-TASK-001",
             "--stage",
             "in_progress",
             "--workspace-root",
@@ -938,14 +939,14 @@ def test_task_check_reports_unknown_service_ref_without_writing(tmp_path: Path) 
         [
             "task",
             "prepare",
-            "TASK-001",
+            "REQ-001-TASK-001",
             "--working-scope",
             "src/codex_workbench/cli.py",
             "--workspace-root",
             str(tmp_path),
         ],
     )
-    task_yaml = tmp_path / "docs" / "active" / "TASK-001" / "task.yaml"
+    task_yaml = tmp_path / "docs" / "active" / "REQ-001-TASK-001" / "task.yaml"
     before_check = task_yaml.read_text(encoding="utf-8")
 
     result = runner.invoke(
@@ -953,7 +954,7 @@ def test_task_check_reports_unknown_service_ref_without_writing(tmp_path: Path) 
         [
             "task",
             "check",
-            "TASK-001",
+            "REQ-001-TASK-001",
             "--to",
             "in_progress",
             "--workspace-root",
@@ -976,7 +977,7 @@ def test_task_check_aggregates_lifecycle_and_service_ref_reasons(tmp_path: Path)
         [
             "task",
             "check",
-            "TASK-001",
+            "REQ-001-TASK-001",
             "--to",
             "in_progress",
             "--workspace-root",
@@ -993,9 +994,9 @@ def test_task_check_done_reports_missing_evidence_record_without_writing(tmp_pat
     create_workspace(tmp_path)
     write_requirement(tmp_path)
     create_task_via_cli(tmp_path)
-    task_yaml = tmp_path / "docs" / "active" / "TASK-001" / "task.yaml"
+    task_yaml = tmp_path / "docs" / "active" / "REQ-001-TASK-001" / "task.yaml"
     task = yaml.safe_load(task_yaml.read_text(encoding="utf-8"))
-    task["validation"] = {"status": "passed", "evidence_ref": "EV-TASK-001"}
+    task["validation"] = {"status": "passed", "evidence_ref": "EV-REQ-001-TASK-001"}
     task["handoff"] = {"status": "accepted", "note": "用户验收通过。"}
     task_yaml.write_text(yaml.safe_dump(task, sort_keys=False, allow_unicode=True), encoding="utf-8")
     before_check = task_yaml.read_text(encoding="utf-8")
@@ -1005,7 +1006,7 @@ def test_task_check_done_reports_missing_evidence_record_without_writing(tmp_pat
         [
             "task",
             "check",
-            "TASK-001",
+            "REQ-001-TASK-001",
             "--to",
             "done",
             "--workspace-root",
@@ -1014,7 +1015,7 @@ def test_task_check_done_reports_missing_evidence_record_without_writing(tmp_pat
     )
 
     assert result.exit_code == 1
-    assert "missing_evidence_record: EV-TASK-001" in result.output
+    assert "missing_evidence_record: EV-REQ-001-TASK-001" in result.output
     assert task_yaml.read_text(encoding="utf-8") == before_check
 
 
@@ -1028,7 +1029,7 @@ def test_task_block_command_records_resume_condition(tmp_path: Path) -> None:
         [
             "task",
             "block",
-            "TASK-001",
+            "REQ-001-TASK-001",
             "--reason",
             "等待用户确认验收。",
             "--blocked-by",
@@ -1043,7 +1044,7 @@ def test_task_block_command_records_resume_condition(tmp_path: Path) -> None:
     )
 
     task = yaml.safe_load(
-        (tmp_path / "docs" / "active" / "TASK-001" / "task.yaml").read_text(
+        (tmp_path / "docs" / "active" / "REQ-001-TASK-001" / "task.yaml").read_text(
             encoding="utf-8"
         )
     )
@@ -1061,7 +1062,7 @@ def test_task_set_stage_rejects_obsolete_without_obsolete_workflow(tmp_path: Pat
         [
             "task",
             "create",
-            "TASK-001",
+            "REQ-001-TASK-001",
             "--requirement-id",
             "REQ-001",
             "--title",
@@ -1084,7 +1085,7 @@ def test_task_set_stage_rejects_obsolete_without_obsolete_workflow(tmp_path: Pat
         [
             "task",
             "set-stage",
-            "TASK-001",
+            "REQ-001-TASK-001",
             "--stage",
             "obsolete",
             "--workspace-root",
@@ -1106,7 +1107,7 @@ def test_task_obsolete_command_sets_stage_with_reason(tmp_path: Path) -> None:
         [
             "task",
             "obsolete",
-            "TASK-001",
+            "REQ-001-TASK-001",
             "--reason",
             "误建任务，降级为废弃。",
             "--workspace-root",
@@ -1115,7 +1116,7 @@ def test_task_obsolete_command_sets_stage_with_reason(tmp_path: Path) -> None:
     )
 
     task = yaml.safe_load(
-        (tmp_path / "docs" / "active" / "TASK-001" / "task.yaml").read_text(
+        (tmp_path / "docs" / "active" / "REQ-001-TASK-001" / "task.yaml").read_text(
             encoding="utf-8"
         )
     )
@@ -1132,7 +1133,7 @@ def test_evidence_validation_handoff_commands_allow_done(tmp_path: Path) -> None
         [
             "task",
             "create",
-            "TASK-001",
+            "REQ-001-TASK-001",
             "--requirement-id",
             "REQ-001",
             "--title",
@@ -1155,9 +1156,9 @@ def test_evidence_validation_handoff_commands_allow_done(tmp_path: Path) -> None
         [
             "evidence",
             "create",
-            "EV-TASK-001",
+            "EV-REQ-001-TASK-001",
             "--task-id",
-            "TASK-001",
+            "REQ-001-TASK-001",
             "--conclusion",
             "passed",
             "--key-output",
@@ -1173,9 +1174,9 @@ def test_evidence_validation_handoff_commands_allow_done(tmp_path: Path) -> None
         [
             "validation",
             "apply",
-            "TASK-001",
+            "REQ-001-TASK-001",
             "--evidence-id",
-            "EV-TASK-001",
+            "EV-REQ-001-TASK-001",
             "--status",
             "passed",
             "--workspace-root",
@@ -1187,7 +1188,7 @@ def test_evidence_validation_handoff_commands_allow_done(tmp_path: Path) -> None
         [
             "handoff",
             "set",
-            "TASK-001",
+            "REQ-001-TASK-001",
             "--status",
             "accepted",
             "--note",
@@ -1201,7 +1202,7 @@ def test_evidence_validation_handoff_commands_allow_done(tmp_path: Path) -> None
         [
             "task",
             "set-stage",
-            "TASK-001",
+            "REQ-001-TASK-001",
             "--stage",
             "done",
             "--workspace-root",
@@ -1210,12 +1211,12 @@ def test_evidence_validation_handoff_commands_allow_done(tmp_path: Path) -> None
     )
 
     task = yaml.safe_load(
-        (tmp_path / "docs" / "active" / "TASK-001" / "task.yaml").read_text("utf-8")
+        (tmp_path / "docs" / "active" / "REQ-001-TASK-001" / "task.yaml").read_text("utf-8")
     )
     assert evidence_result.exit_code == 0
-    assert "created docs/active/TASK-001/evidence.yaml" in evidence_result.output
+    assert "created docs/active/REQ-001-TASK-001/evidence.yaml" in evidence_result.output
     assert validation_result.exit_code == 0
-    assert "updated docs/active/TASK-001/task.yaml" in validation_result.output
+    assert "updated docs/active/REQ-001-TASK-001/task.yaml" in validation_result.output
     assert handoff_result.exit_code == 0
     assert done_result.exit_code == 0
     assert task["stage"] == "done"
@@ -1229,7 +1230,7 @@ def test_evidence_create_dry_run_does_not_write_record(tmp_path: Path) -> None:
         [
             "task",
             "create",
-            "TASK-001",
+            "REQ-001-TASK-001",
             "--requirement-id",
             "REQ-001",
             "--title",
@@ -1252,9 +1253,9 @@ def test_evidence_create_dry_run_does_not_write_record(tmp_path: Path) -> None:
         [
             "evidence",
             "create",
-            "EV-TASK-001",
+            "EV-REQ-001-TASK-001",
             "--task-id",
-            "TASK-001",
+            "REQ-001-TASK-001",
             "--conclusion",
             "passed",
             "--key-output",
@@ -1268,8 +1269,8 @@ def test_evidence_create_dry_run_does_not_write_record(tmp_path: Path) -> None:
     )
 
     assert result.exit_code == 0
-    assert "dry-run docs/active/TASK-001/evidence.yaml" in result.output
-    assert not (tmp_path / "docs" / "active" / "TASK-001" / "evidence.yaml").exists()
+    assert "dry-run docs/active/REQ-001-TASK-001/evidence.yaml" in result.output
+    assert not (tmp_path / "docs" / "active" / "REQ-001-TASK-001" / "evidence.yaml").exists()
 
 
 def test_evidence_create_requires_explicit_conclusion(tmp_path: Path) -> None:
@@ -1280,7 +1281,7 @@ def test_evidence_create_requires_explicit_conclusion(tmp_path: Path) -> None:
         [
             "task",
             "create",
-            "TASK-001",
+            "REQ-001-TASK-001",
             "--requirement-id",
             "REQ-001",
             "--title",
@@ -1303,9 +1304,9 @@ def test_evidence_create_requires_explicit_conclusion(tmp_path: Path) -> None:
         [
             "evidence",
             "create",
-            "EV-TASK-001",
+            "EV-REQ-001-TASK-001",
             "--task-id",
-            "TASK-001",
+            "REQ-001-TASK-001",
             "--key-output",
             "python -m pytest passed",
             "--workspace-root",
@@ -1327,7 +1328,7 @@ def test_validation_apply_rejects_missing_evidence_command(tmp_path: Path) -> No
         [
             "task",
             "create",
-            "TASK-001",
+            "REQ-001-TASK-001",
             "--requirement-id",
             "REQ-001",
             "--title",
@@ -1350,7 +1351,7 @@ def test_validation_apply_rejects_missing_evidence_command(tmp_path: Path) -> No
         [
             "validation",
             "apply",
-            "TASK-001",
+            "REQ-001-TASK-001",
             "--evidence-id",
             "EV-MISSING",
             "--status",
@@ -1372,7 +1373,7 @@ def test_validation_apply_requires_explicit_status(tmp_path: Path) -> None:
         [
             "task",
             "create",
-            "TASK-001",
+            "REQ-001-TASK-001",
             "--requirement-id",
             "REQ-001",
             "--title",
@@ -1394,9 +1395,9 @@ def test_validation_apply_requires_explicit_status(tmp_path: Path) -> None:
         [
             "evidence",
             "create",
-            "EV-TASK-001",
+            "EV-REQ-001-TASK-001",
             "--task-id",
-            "TASK-001",
+            "REQ-001-TASK-001",
             "--conclusion",
             "passed",
             "--key-output",
@@ -1413,9 +1414,9 @@ def test_validation_apply_requires_explicit_status(tmp_path: Path) -> None:
         [
             "validation",
             "apply",
-            "TASK-001",
+            "REQ-001-TASK-001",
             "--evidence-id",
-            "EV-TASK-001",
+            "EV-REQ-001-TASK-001",
             "--workspace-root",
             str(tmp_path),
         ],
@@ -1433,7 +1434,7 @@ def test_validation_apply_dry_run_does_not_update_task(tmp_path: Path) -> None:
         [
             "task",
             "create",
-            "TASK-001",
+            "REQ-001-TASK-001",
             "--requirement-id",
             "REQ-001",
             "--title",
@@ -1455,9 +1456,9 @@ def test_validation_apply_dry_run_does_not_update_task(tmp_path: Path) -> None:
         [
             "evidence",
             "create",
-            "EV-TASK-001",
+            "EV-REQ-001-TASK-001",
             "--task-id",
-            "TASK-001",
+            "REQ-001-TASK-001",
             "--conclusion",
             "passed",
             "--key-output",
@@ -1474,9 +1475,9 @@ def test_validation_apply_dry_run_does_not_update_task(tmp_path: Path) -> None:
         [
             "validation",
             "apply",
-            "TASK-001",
+            "REQ-001-TASK-001",
             "--evidence-id",
-            "EV-TASK-001",
+            "EV-REQ-001-TASK-001",
             "--status",
             "passed",
             "--workspace-root",
@@ -1486,10 +1487,10 @@ def test_validation_apply_dry_run_does_not_update_task(tmp_path: Path) -> None:
     )
 
     task = yaml.safe_load(
-        (tmp_path / "docs" / "active" / "TASK-001" / "task.yaml").read_text("utf-8")
+        (tmp_path / "docs" / "active" / "REQ-001-TASK-001" / "task.yaml").read_text("utf-8")
     )
     assert result.exit_code == 0
-    assert "dry-run docs/active/TASK-001/task.yaml" in result.output
+    assert "dry-run docs/active/REQ-001-TASK-001/task.yaml" in result.output
     assert task["validation"]["status"] == "not_started"
 
 
@@ -1501,7 +1502,7 @@ def test_handoff_set_dry_run_does_not_update_task(tmp_path: Path) -> None:
         [
             "task",
             "create",
-            "TASK-001",
+            "REQ-001-TASK-001",
             "--requirement-id",
             "REQ-001",
             "--title",
@@ -1524,7 +1525,7 @@ def test_handoff_set_dry_run_does_not_update_task(tmp_path: Path) -> None:
         [
             "handoff",
             "set",
-            "TASK-001",
+            "REQ-001-TASK-001",
             "--status",
             "waiting_user_validation",
             "--note",
@@ -1536,10 +1537,10 @@ def test_handoff_set_dry_run_does_not_update_task(tmp_path: Path) -> None:
     )
 
     task = yaml.safe_load(
-        (tmp_path / "docs" / "active" / "TASK-001" / "task.yaml").read_text("utf-8")
+        (tmp_path / "docs" / "active" / "REQ-001-TASK-001" / "task.yaml").read_text("utf-8")
     )
     assert result.exit_code == 0
-    assert "dry-run docs/active/TASK-001/task.yaml" in result.output
+    assert "dry-run docs/active/REQ-001-TASK-001/task.yaml" in result.output
     assert "handoff" not in task
 
 
@@ -1551,7 +1552,7 @@ def test_handoff_waiting_blocks_done_command(tmp_path: Path) -> None:
         [
             "task",
             "create",
-            "TASK-001",
+            "REQ-001-TASK-001",
             "--requirement-id",
             "REQ-001",
             "--title",
@@ -1573,9 +1574,9 @@ def test_handoff_waiting_blocks_done_command(tmp_path: Path) -> None:
         [
             "evidence",
             "create",
-            "EV-TASK-001",
+            "EV-REQ-001-TASK-001",
             "--task-id",
-            "TASK-001",
+            "REQ-001-TASK-001",
             "--conclusion",
             "passed",
             "--key-output",
@@ -1591,9 +1592,9 @@ def test_handoff_waiting_blocks_done_command(tmp_path: Path) -> None:
         [
             "validation",
             "apply",
-            "TASK-001",
+            "REQ-001-TASK-001",
             "--evidence-id",
-            "EV-TASK-001",
+            "EV-REQ-001-TASK-001",
             "--status",
             "passed",
             "--workspace-root",
@@ -1605,7 +1606,7 @@ def test_handoff_waiting_blocks_done_command(tmp_path: Path) -> None:
         [
             "handoff",
             "set",
-            "TASK-001",
+            "REQ-001-TASK-001",
             "--status",
             "waiting_user_validation",
             "--workspace-root",
@@ -1618,7 +1619,7 @@ def test_handoff_waiting_blocks_done_command(tmp_path: Path) -> None:
         [
             "task",
             "set-stage",
-            "TASK-001",
+            "REQ-001-TASK-001",
             "--stage",
             "done",
             "--workspace-root",
@@ -1911,7 +1912,7 @@ def test_intake_create_confirm_then_task_create(tmp_path: Path) -> None:
         [
             "task",
             "create",
-            "TASK-001",
+            "REQ-001-TASK-001",
             "--requirement-id",
             "REQ-001",
             "--title",
@@ -1945,7 +1946,7 @@ def test_intake_create_confirm_then_task_create(tmp_path: Path) -> None:
         [
             "task",
             "create",
-            "TASK-001",
+            "REQ-001-TASK-001",
             "--requirement-id",
             "REQ-001",
             "--title",
@@ -1972,7 +1973,7 @@ def test_intake_create_confirm_then_task_create(tmp_path: Path) -> None:
     assert confirmed["readiness"]["confirmed_by_user"] is True
     assert confirmed["updated_at"] == "2026-07-02"
     assert allowed_task.exit_code == 0
-    assert (tmp_path / "docs" / "active" / "TASK-001" / "task.yaml").exists()
+    assert (tmp_path / "docs" / "active" / "REQ-001-TASK-001" / "task.yaml").exists()
 
 
 def test_intake_confirm_rejects_plain_requirement_package(tmp_path: Path) -> None:
@@ -2622,7 +2623,7 @@ def test_action_create_writes_machine_record_and_does_not_touch_task(tmp_path: P
         [
             "task",
             "create",
-            "TASK-001",
+            "REQ-001-TASK-001",
             "--requirement-id",
             "REQ-001",
             "--title",
@@ -2639,7 +2640,7 @@ def test_action_create_writes_machine_record_and_does_not_touch_task(tmp_path: P
             "2026-07-01",
         ],
     )
-    task_yaml = tmp_path / "docs" / "active" / "TASK-001" / "task.yaml"
+    task_yaml = tmp_path / "docs" / "active" / "REQ-001-TASK-001" / "task.yaml"
     before_task = task_yaml.read_text(encoding="utf-8")
 
     result = runner.invoke(
@@ -2663,7 +2664,7 @@ def test_action_create_writes_machine_record_and_does_not_touch_task(tmp_path: P
             "--result",
             "已完成局部整理。",
             "--related-ref",
-            "TASK-001",
+            "REQ-001-TASK-001",
             "--side-effect-summary",
             "no_side_effect",
             "--rollback-hint",
@@ -2688,7 +2689,7 @@ def test_action_create_writes_machine_record_and_does_not_touch_task(tmp_path: P
     assert action["authorization"] == "用户确认本地维护动作。"
     assert action["target"] == "docs/generated"
     assert action["result"] == "已完成局部整理。"
-    assert action["related_refs"] == ["TASK-001"]
+    assert action["related_refs"] == ["REQ-001-TASK-001"]
     action_md_text = action_md.read_text(encoding="utf-8")
     assert action_md_text.startswith("# ACT-001 记录一次辅助动作\n")
     assert "## 操作记录" in action_md_text
@@ -2876,7 +2877,7 @@ def test_change_create_writes_formal_change_record(tmp_path: Path) -> None:
             "--handling",
             "先记录变更，再继续实现。",
             "--related-ref",
-            "TASK-001",
+            "REQ-001-TASK-001",
             "--workspace-root",
             str(tmp_path),
             "--updated-at",
@@ -2893,7 +2894,7 @@ def test_change_create_writes_formal_change_record(tmp_path: Path) -> None:
     assert change["id"] == "CHG-001"
     assert change["change_kind"] == "scope_change"
     assert change["changed_area"] == "acceptance"
-    assert change["related_refs"] == ["TASK-001"]
+    assert change["related_refs"] == ["REQ-001-TASK-001"]
     assert change["reason"] == "用户改变验收口径。"
     change_text = change_md.read_text(encoding="utf-8")
     assert change_text.startswith("# CHG-001 记录验收变化\n")
@@ -2948,7 +2949,7 @@ def test_suspicion_create_records_clue_without_touching_task(tmp_path: Path) -> 
         [
             "task",
             "create",
-            "TASK-001",
+            "REQ-001-TASK-001",
             "--requirement-id",
             "REQ-001",
             "--title",
@@ -2965,7 +2966,7 @@ def test_suspicion_create_records_clue_without_touching_task(tmp_path: Path) -> 
             "2026-07-01",
         ],
     )
-    task_yaml = tmp_path / "docs" / "active" / "TASK-001" / "task.yaml"
+    task_yaml = tmp_path / "docs" / "active" / "REQ-001-TASK-001" / "task.yaml"
     before_task = task_yaml.read_text(encoding="utf-8")
 
     result = runner.invoke(
@@ -2989,7 +2990,7 @@ def test_suspicion_create_records_clue_without_touching_task(tmp_path: Path) -> 
             "--suggested-handling",
             "后续单独评估。",
             "--related-ref",
-            "TASK-001",
+            "REQ-001-TASK-001",
             "--workspace-root",
             str(tmp_path),
             "--updated-at",
@@ -3192,7 +3193,7 @@ def test_change_decision_suspicion_negative_guards(tmp_path: Path) -> None:
             "--suggested-handling",
             "后续单独评估。",
             "--related-ref",
-            "../TASK-001",
+            "../REQ-001-TASK-001",
             "--workspace-root",
             str(tmp_path),
             "--updated-at",
@@ -3200,7 +3201,7 @@ def test_change_decision_suspicion_negative_guards(tmp_path: Path) -> None:
         ],
     )
     assert suspicion_bad_ref.exit_code != 0
-    assert "invalid_package_ref: ../TASK-001" in combined_output(suspicion_bad_ref)
+    assert "invalid_package_ref: ../REQ-001-TASK-001" in combined_output(suspicion_bad_ref)
 
 
 def write_archive_ready_requirement(root: Path) -> None:
@@ -3214,7 +3215,7 @@ def write_archive_ready_requirement(root: Path) -> None:
                 "title": "完成版本",
                 "goal": "形成可归档版本。",
                 "readiness": {"status": "readable", "confirmed_by_user": True},
-                "task_refs": ["TASK-001"],
+                "task_refs": ["REQ-001-TASK-001"],
                 "confirmations": [
                     {
                         "type": "requirement_closure",
@@ -3232,20 +3233,21 @@ def write_archive_ready_requirement(root: Path) -> None:
 
 
 def write_archive_ready_task(root: Path) -> None:
-    task_dir = root / "docs" / "active" / "TASK-001"
+    task_dir = root / "docs" / "active" / "REQ-001-TASK-001"
     task_dir.mkdir(parents=True)
     (task_dir / "task.yaml").write_text(
         yaml.safe_dump(
             {
                 "schema_version": "0.1",
-                "id": "TASK-001",
+                "id": "REQ-001-TASK-001",
+                "requirement_id": "REQ-001",
                 "title": "完成验证",
                 "stage": "done",
                 "process_level": "standard",
                 "risk_level": "standard",
                 "validation": {
                     "status": "passed",
-                    "evidence_ref": "EV-TASK-001",
+                    "evidence_ref": "EV-REQ-001-TASK-001",
                     "unverified_items": [],
                 },
                 "handoff": {"status": "accepted", "note": "用户验收通过。"},
@@ -3255,13 +3257,13 @@ def write_archive_ready_task(root: Path) -> None:
         ),
         encoding="utf-8",
     )
-    (task_dir / "task.md").write_text("# TASK-001\n", encoding="utf-8")
+    (task_dir / "task.md").write_text("# REQ-001-TASK-001\n", encoding="utf-8")
     (task_dir / "evidence.yaml").write_text(
         yaml.safe_dump(
             {
                 "schema_version": "0.1",
-                "id": "EV-TASK-001",
-                "task_id": "TASK-001",
+                "id": "EV-REQ-001-TASK-001",
+                "task_id": "REQ-001-TASK-001",
                 "conclusion": "passed",
                 "key_outputs": ["pytest passed"],
                 "unverified_items": [],

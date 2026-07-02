@@ -22,7 +22,8 @@ from codex_workbench.schema import CURRENT_SCHEMA_VERSION
 def task(**overrides: object) -> TaskState:
     data: dict[str, object] = {
         "schema_version": CURRENT_SCHEMA_VERSION,
-        "id": "TASK-demo",
+        "id": "REQ-demo-TASK-demo",
+        "requirement_id": "REQ-demo",
         "title": "Demo lifecycle task",
         "stage": "ready",
         "service_refs": ["app"],

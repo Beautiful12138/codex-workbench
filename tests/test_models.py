@@ -27,7 +27,8 @@ ROOT = Path(__file__).resolve().parents[1]
 def minimal_task(**overrides: object) -> dict[str, object]:
     data: dict[str, object] = {
         "schema_version": CURRENT_SCHEMA_VERSION,
-        "id": "TASK-demo",
+        "id": "REQ-demo-TASK-demo",
+        "requirement_id": "REQ-demo",
         "title": "Demo task",
         "stage": "draft",
         "service_refs": [],
@@ -42,6 +43,40 @@ def test_task_state_accepts_minimal_valid_task() -> None:
     assert task.schema_version == CURRENT_SCHEMA_VERSION
     assert task.stage is TaskStage.DRAFT
     assert task.knowledge.confirmed_facts == []
+
+
+def test_task_state_accepts_requirement_linked_task_id() -> None:
+    task = TaskState.model_validate(
+        minimal_task(
+            id="REQ-001-TASK-001",
+            requirement_id="REQ-001",
+        )
+    )
+
+    assert task.id == "REQ-001-TASK-001"
+    assert task.requirement_id == "REQ-001"
+
+
+def test_task_state_requires_requirement_id() -> None:
+    data = minimal_task(id="REQ-001-TASK-001", requirement_id="REQ-001")
+    data.pop("requirement_id")
+
+    with pytest.raises(ValidationError) as exc_info:
+        TaskState.model_validate(data)
+
+    assert exc_info.value.errors()[0]["loc"] == ("requirement_id",)
+
+
+def test_task_state_rejects_task_id_outside_requirement_prefix() -> None:
+    with pytest.raises(ValidationError) as exc_info:
+        TaskState.model_validate(
+            minimal_task(
+                id="REQ-002-TASK-001",
+                requirement_id="REQ-001",
+            )
+        )
+
+    assert "task_id_requirement_prefix_mismatch" in str(exc_info.value)
 
 
 def test_task_state_rejects_unknown_stage() -> None:

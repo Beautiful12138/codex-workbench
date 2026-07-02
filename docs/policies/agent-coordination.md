@@ -1,27 +1,48 @@
 # Agent 协作
 
-本文件说明 Codex、skills 和子代理如何协作，目标是减少漂移，而不是增加仪式。
+本文件说明 Codex、skills、CLI、子代理和用户如何协作。
 
-## Skills
+## 基本分工
 
-- `.agents/skills/workbench-*` 是短提示，用于恢复、任务推进、验证交接和归档。
-- skill 不替代 `AGENTS.md`、task 包、CLI、evidence 或用户确认。
-- skill 不应注入长 policy；需要细节时读 `docs/policies/*`。
+- `AGENTS.md`：热路径入口和最高频判断。
+- `CURRENT.md`：入口卡。
+- policy：运行规则和反例。
+- skills：可执行操作规程。
+- CLI/schema：可靠写入和门禁。
+- generated views：恢复和检索。
+- 用户确认：需求、范围、风险、验收、关闭和归档的高层事实来源。
+
+## skills
+
+使用本仓库 `.agents/skills/workbench-*`，不要默认到其他仓库找同名 skill。
+
+skill 不替代包 YAML、evidence、CLI 或用户确认。skill 应告诉 Codex 怎么读、怎么判断、什么时候停、用哪个命令。
 
 ## 子代理
 
-- 子代理适合做只读复核、并行检查、文档连贯性审查和风险扫描。
-- 子代理结论不是事实真源；主代理需要读输出、核对文件和验证命令。
-- 高风险或真实后果任务不得自写自审通过，应有独立复核或用户确认。
+子代理适合：
 
-## 协作边界
+- 只读复核。
+- 并行检查多个服务。
+- 文档连贯性审查。
+- 风险扫描。
+- 测试失败定位。
 
-- 不为了流程完整而创建空 review、空 evidence 或空 change。
-- 不把普通讨论污染成正式状态。
-- 需要阶段推进、验证完成、需求关闭或归档时，必须回到包真源和 CLI。
+子代理结论不是事实真源。主代理必须核对文件、命令输出和状态包。
+
+高风险、critical 或有真实后果的任务，不应由同一主体自写自审通过；需要独立复核或用户确认。
 
 ## 接续
 
-- 新窗口先读 `AGENTS.md` 和 `CURRENT.md`。
-- 如果 `CURRENT.md` 指向 active package，再读对应 YAML/Markdown。
-- 生成视图可帮助定位，但不能覆盖包真源。
+新窗口先读 `AGENTS.md`、`CURRENT.md` 和 `docs/generated/recovery.md`。若选择到 task，再读 task YAML/Markdown。若要推进阶段、验证或归档，再读对应 evidence、handoff、policy。
+
+不要把旧聊天摘要覆盖状态真源。旧摘要只能作为线索。
+
+## 不制造仪式
+
+- 不为普通讨论创建 task。
+- 不为只读探索默认写状态。
+- 不预生成空 review、implementation、evidence 或 change。
+- 不让 doctor、hook 或 generated view 自动推进阶段。
+
+需要长期接续时，优先写入真实 task `next_step`、evidence、action、change、decision 或 suspicion，而不是堆长 `CURRENT.md`。

@@ -5,25 +5,90 @@ description: Use when Codex 需要在 codex-workbench 中处理材料、discover
 
 # Workbench Task
 
-## 核心
+## 适用场景
 
-把产品想法先转成可开发需求，再创建任务。不要为普通讨论、头脑风暴或只读探索自动建任务。
+使用本 skill 处理：
 
-## 路由
+- 用户希望把想法、问题或材料纳入 Workbench。
+- 创建或确认 requirement。
+- 创建 task。
+- 处理 task prepare、阶段推进、blocked 或 obsolete。
+- 判断当前请求是产品任务、维护动作还是只读探索。
 
-1. 原始材料只登记脱敏摘要：`material add`。
-2. 系统观察、AI 推断、假设和问题进入 `discovery create`。
-3. 用户确认后的开发边界进入 `intake create`，再由 `intake confirm` 变成 readable requirement。
-4. 正式开发项用 `task create`；`task.yaml.next_step` 记录恢复提示，`task.md` 只生成标题骨架，正文由 AI 按任务填写。
-5. 需要显性化 review 或 implementation 时，用 `task review-create` / `task implementation-create` 在任务包本地生成 Markdown；不要预生成空文档。
-6. implementation-ready 用 `task prepare` 写入；有暂停条件时加 `--risk-trigger`；阶段推进前可用 `task check --to <stage>` 只读预演，阶段变化用 `task set-stage`。
-7. 阻塞任务用 `task block`，必须记录原因、阻塞方、恢复条件和恢复后阶段。
-8. 误建或废弃任务用 `task obsolete`，必须保留原因。
+## 核心原则
 
-## 边界
+产品任务必须从可读需求出发。原始材料、截图、聊天摘要、AI 推断和只读探索结果都不能直接当成可开发事实。
 
-- Markdown 模板只是起稿骨架，不是固定表单；如果不适合当前任务，标题、章节和表达方式可以自由改。
-- `service_refs` 是相关服务标记，不限制后续阅读或必要探索；写出的 service ref 必须能对应已登记服务。
-- `risk_triggers` 是暂停确认条件，不是路径白名单。
-- 发现新服务、范围变化或验收变化时先暂停对齐。
-- 不为“也许以后会用”的内容预生成空 review、implementation、evidence 或 change。
+轻量路径只减少空仪式，不跳过目标、范围、验证、交接和完成门禁。
+
+## 路由流程
+
+1. 普通讨论：不写状态。
+2. 只读探索：先读文件、日志或服务状态；需要沉淀时写 discovery。
+3. 原始材料：用 `material add` 记录来源和脱敏摘要。
+4. 系统观察、AI 推断、假设和问题：用 `discovery create`。
+5. AI-readable 需求草案：用 `intake create`。
+6. 用户确认需求边界：用 `intake confirm`。
+7. 正式执行项：用 `task create`。
+8. 开工准入：用 `task prepare` 写入 working_scope、risk_triggers、implementation-ready。
+9. 阶段预演：用 `task check --to <stage>`。
+10. 阶段写入：用 `task set-stage --stage <stage>`。
+
+## task prepare
+
+进入实现前，`task prepare` 至少应固定：
+
+- working_scope：本次允许工作的范围。
+- risk_triggers：触发暂停确认的条件。
+- likely_touchpoints：预计触点，用于恢复，不是路径白名单。
+- implementation ref：需要显性化时指向 `implementation.md`。
+- review ref：高风险任务需要 review done。
+- risk acceptance：高风险或真实后果任务需要用户确认。
+
+不要把 `service_refs` 当成修改白名单。它只是相关服务标记。
+
+## 阶段推进
+
+- `draft`：草案任务。
+- `ready`：已准备但未开工。
+- `in_progress`：可修改任务范围内文件。
+- `verification_pending`：实现后等待验证。
+- `blocked`：外部条件阻塞，必须有恢复条件。
+- `done`：验证和交接闭环。
+- `obsolete`：误建或废弃，不等于完成。
+
+阶段推进前先用 `task check`。失败时不要绕过 lifecycle guard。
+
+## 变更判断
+
+以下情况先暂停并考虑 change record：
+
+- 用户目标变化。
+- 完成口径变化。
+- 公开契约或跨服务接口变化。
+- 数据结构、权限、部署、环境或真实后果变化。
+- 临时扩大正式范围。
+
+局部命名、注释、文案、小范围验证补充，且不改变目标和风险时，不自动升级为 change。
+
+## 不能做的事
+
+- 不为普通讨论创建 task。
+- 不为只读探索默认写状态。
+- 不创建没有用户确认的 readable requirement 的正式 task。
+- 不预生成空 review、implementation、evidence 或 change。
+- 不用 action note 替代产品任务。
+
+## 常用命令
+
+```powershell
+$env:PYTHONPATH='src'
+python -m codex_workbench material add MAT-001 --title "..." --source "..." --summary "..." --received-at "..."
+python -m codex_workbench discovery create DISC-001 --title "..." --material-ref MAT-001 --updated-at "..."
+python -m codex_workbench intake create REQ-001 --title "..." --goal "..." --material-ref MAT-001 --updated-at "..."
+python -m codex_workbench intake confirm REQ-001 --updated-at "..."
+python -m codex_workbench task create REQ-001-TASK-001 --requirement-id REQ-001 --title "..." --user-goal "..." --done "..." --next "..."
+python -m codex_workbench task prepare REQ-001-TASK-001 --working-scope "..." --risk-trigger "..."
+python -m codex_workbench task check REQ-001-TASK-001 --to in_progress
+python -m codex_workbench task set-stage REQ-001-TASK-001 --stage in_progress
+```

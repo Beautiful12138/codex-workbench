@@ -1,88 +1,153 @@
 # Codex Workbench 入口地图
 
-本文件是 Codex 进入 Workbench 时的入口地图，不是完整手册。启动时先读这里，再按当前动作读取 `CURRENT.md`、生成视图、任务包或 policy。
+本文件是 Codex 进入本工作台后的热路径入口。它的目标不是介绍项目背景，而是让一个新的 Codex 能在**多个需求、多个任务、多个服务**并存时稳定工作：知道读什么、先做什么、何时写状态、何时暂停、何时只讨论。
 
-普通讨论不写状态、低风险任务少仪式；当请求进入任务推进、验证、交接或归档时，按本文件、policy、skills 和 CLI 规则恢复现场、判断边界并留下证据。
+`codex-workbench` 是个人本地多项目工程协作工作台。它使用文件包承载需求、任务、证据和历史，用 CLI/schema 做可靠写入和门禁，用 generated 视图帮助恢复现场。
 
-## 工作区定位
+## 当前工作区定位
 
-当前仓库既是 Workbench baseline 工作空间，也是 `codex_workbench` Python 包仓库。
+当前仓库同时包含：
 
-`workspace_status: baseline` 表示这里还没有绑定真实需求；它是后续真实需求、任务包和服务登记的干净起点。
+- Workbench 运行期 baseline。
+- `codex_workbench` Python CLI 与 schema 源码。
 
-## 读取顺序
+`CURRENT.md` 是入口卡，只提供第一眼恢复提示；它不作为单任务锁。真实工作对象必须从用户请求、显式包路径、`docs/generated/recovery.md`、CLI 参数或包 YAML 中选择。
 
-恢复现场、回答状态问题或准备推进任务时，按顺序读取：
+## 启动读取顺序
+
+恢复现场、回答状态问题或准备行动时，按以下顺序读取：
 
 1. `AGENTS.md`
 2. `CURRENT.md`
-3. `docs/generated/recovery.md` 或用户明确给出的包路径
-4. 当前 requirement / task 包中的 YAML 和 Markdown
-5. 只有动作需要时，读取 `docs/policies/*`、`services/registry.yaml` 或 `docs/archive/*`
+3. 用户明确给出的路径、任务 ID、需求 ID 或服务名
+4. `docs/generated/recovery.md`
+5. 被选中的 requirement / task 包 YAML 与 Markdown
+6. 仅在动作需要时读取对应 policy、`services/registry.yaml` 或 `docs/archive/`*
 
-普通讨论不需要展开全部状态；只读探索不等于修改授权。
+普通讨论不需要展开全部状态。只读探索不等于修改授权。生成视图只用于定位和恢复，不能覆盖包 YAML 真源。
 
-## 动作模式与读取深度
+## 请求分流
 
-| 当前动作 | 默认读取 | 何时展开更多 |
-| --- | --- | --- |
-| 普通讨论 / 方向判断 | `AGENTS.md`、`CURRENT.md` | 需要固化结论时再读包和 policy |
-| 只读探索 | 用户指定文件、生成视图、相关服务状态 | 需要落 discovery / intake 时再写材料或发现 |
-| 产品任务推进 | 当前 requirement / task 包、`services/registry.yaml` | 修改前确认任务已 `in_progress` 且范围清楚 |
-| 验证 / 交接 / 完成 | task 包、evidence、handoff | 标记 done 前必须读取真实 evidence |
-| 版本归档 | 已关闭 requirement、done/obsolete task、archive policy | 必须有需求关闭确认和独立归档授权 |
+先判断用户请求属于哪类，再决定读写深度：
 
-## 动作分流
 
-不是所有请求都进入正式任务。
+| 类型   | 典型请求                      | 默认动作                                               |
+| ---- | ------------------------- | -------------------------------------------------- |
+| 普通讨论 | 解释、比较、判断方向、问是否合理          | 只读最少上下文，不写状态                                       |
+| 只读探索 | 看文件、看服务状态、看日志、定位问题        | 可搜索和读取，不写状态；若后续要沉淀需求再写 discovery                   |
+| 产品任务 | 用户要实现、修复、调整可交付功能          | material / discovery / intake / task / evidence 流程 |
+| 维护动作 | 整理 Workbench 自身、局部文档或工具维护 | 必要时写 action note；不伪装成产品任务                          |
+| 运维动作 | 环境、权限、配置、部署、运行状态、外部服务写入   | 先确认授权；需要留痕时写 action note                           |
+| 临时检查 | 一次性状态确认、临时诊断              | 通常不落档；若支撑后续决策再写 discovery 或 action                 |
+| 归档动作 | 需求关闭、版本归档、查询历史            | 需要需求关闭确认和独立归档授权                                    |
 
-- 普通讨论、头脑风暴、解释和只读探索默认不写状态。
-- 产品需求先进入 material / discovery / intake；用户确认 readable 后才能创建正式 task。
-- 维护动作可写 action note，但 action note 不替代 task evidence。
-- action note 只记录 `maintenance_action`、`ops_action` 或 `ephemeral_check`；产品任务仍进入 task。
-- 需求目标、验收、范围或真实后果变化时，走 change record。
+
+如果不确定性不影响只读调查，先调查并说明假设。若不确定性会影响代码、配置、数据、权限、安全、部署、外部环境或完成结论，先暂停确认。
+
+## 工作对象选择
+
+多需求、多任务并存时，按以下优先级选择工作对象：
+
+1. 显式路径优先：用户给出 `docs/active/...`、文件路径、任务包路径或服务路径时，以它为候选对象。
+2. 显式 ID 其次：用户点名 `REQ-*`、`REQ-*-TASK-*`、`EV-*`、action/change/decision/suspicion ID 时，读取对应包。
+3. 用户语义匹配：用户说“刚才那个任务”“这个需求”“某服务的问题”时，用 `docs/generated/recovery.md` 和包 YAML 对齐。
+4. recovery 辅助：没有明确对象时，先读 `docs/generated/recovery.md`，从 active task、blocked、next_step、service_refs 和 conflicts 中选择。
+5. 无法唯一判断时，保持只读，不写状态，向用户问一个聚焦问题。
+
+不要因为 `CURRENT.md` 没有 current_task 就认为没有可推进任务；也不要因为 `CURRENT.md` 提到某个对象就忽略用户当前明确指定的对象。
+
+## 读取深度
+
+
+| 当前动作 | 默认读取                                                    | 展开条件                         |
+| ---- | ------------------------------------------------------- | ---------------------------- |
+| 普通讨论 | `AGENTS.md`、`CURRENT.md`、用户指定材料                         | 需要固化结论时再读 policy 或包          |
+| 只读探索 | 用户指定文件、recovery、相关服务状态                                  | 需要形成 discovery / intake 时再落档 |
+| 需求梳理 | material、discovery、intake 草案                            | 用户确认后才 readable              |
+| 任务创建 | readable requirement、服务登记、相关 discovery                  | 范围或验收不清时暂停                   |
+| 任务推进 | task YAML、task.md、service registry、implementation-ready | 改文件前确认 task 已 `in_progress`  |
+| 验证收口 | task、evidence、validation、handoff                        | 标 done 前必须读取真实 evidence      |
+| 归档   | requirement、done/obsolete task、archive policy           | 需要 close 确认和 archive 授权      |
+
 
 ## 状态真源
 
-- `CURRENT.md`：入口卡和当前恢复提示。
-- `docs/active/*/*.yaml`：requirement、task、evidence 等机器状态真源。
-- `docs/active/*/*.md`：给人和 Codex 的解释，不覆盖 YAML。
-- `services/registry.yaml`：服务登记和只读状态输入；`service_refs` 只是相关服务标记，修改授权来自用户请求、任务阶段、working_scope 和风险边界；写出的 service ref 必须能对应已登记服务。
-- `docs/generated/`：可重建视图，不覆盖包真源。
+- `docs/active/*/*.yaml`：requirement、task、evidence 的机器状态真源。
+- `docs/active/*/*.md`：给人和 Codex 的解释层，不覆盖 YAML。
+- `services/registry.yaml`：服务登记和只读状态输入。
+- `docs/generated/index.md` / `docs/generated/recovery.md`：可重建视图，不覆盖真源。
 - `docs/archive/`：版本化冷历史，默认不作为当前上下文。
+- `docs/actions/`、`docs/changes/`、`docs/decisions/`、`docs/suspicions/`：非任务动作、范围变化、长期决策和疑点线索。
 
-## 事实层级
+事实层级从高到低：
 
-从高到低：人工确认和命令输出、evidence、action note、progress、requirement、discovery、generated view、current packet、AI 推断、未确认假设。低层级不能覆盖高层级。
+```text
+人工明确确认 / 命令输出 / 真实文件状态
+> evidence
+> action note
+> requirement / task YAML
+> discovery
+> generated view
+> task next_step
+> AI 推断
+> 未确认假设
+```
 
-## 最高优先级边界
+低层级不能覆盖高层级。冲突无法裁决时，保守处理并报告。
 
-- 没有用户确认的 readable requirement，不创建正式 task。
-- 没有 `in_progress` task 和清楚范围，不修改任务目标内文件。
+## 修改边界
+
+- 没有用户确认的 readable requirement，不创建正式产品 task。
+- 没有 `in_progress` task 和清楚 implementation-ready，不修改任务目标内文件。
+- `service_refs` 是相关服务标记，不是修改白名单；修改授权来自用户请求、任务阶段、working_scope、风险边界和必要确认。
+- 发现新服务、范围变化、验收变化、外部契约变化或真实后果变化时，暂停对齐。
+- 真实数据、部署、安全、权限、费用、不可逆操作、影响他人或共享环境时，必须先确认。
 - 没有 evidence，不声称已验证或已完成。
-- 不让自动提醒或健康检查替代人工判断、自动写状态、自动归档、自动修复或阻断普通探索。
-- 真实数据、部署、安全、权限、费用、不可逆操作或影响他人时，暂停确认；触发任务 `risk_triggers` 时也先暂停。
+- action note、doctor clean、测试计划、口头判断都不能替代 task evidence。
+
+## 任务生命周期
+
+产品工作通常按以下闭环推进：
+
+1. `material add`：登记来源和脱敏摘要。
+2. `discovery create`：记录只读探索得到的观察、推断、假设和问题。
+3. `intake create`：形成 AI-readable 需求草案。
+4. `intake confirm`：用户确认后 requirement 才 readable。
+5. `task create`：创建任务包。
+6. `task review-create` / `task implementation-create`：需要显性化时在任务包本地创建说明。
+7. `task prepare`：写入 working_scope、risk_triggers、implementation-ready 等开工准入。
+8. `task set-stage --stage in_progress`：通过门禁后进入实现。
+9. `evidence create`：记录真实验证事实。
+10. `validation apply`：基于 evidence 写回验证结论。
+11. `handoff set`：记录用户验收维度。
+12. `task set-stage --stage done`：validation、evidence、handoff 均满足时完成。
+13. `requirement close`：用户确认需求关闭。
+14. `archive preflight` / `archive version`：独立授权后版本归档。
+
+轻量路径只减少空仪式，不跳过事实、范围、验证和完成门禁。
 
 ## Policy 地图
 
-- `docs/policies/action-routing.md`：动作分流和非任务记录。
-- `docs/policies/state-and-gates.md`：阶段、门禁、evidence、handoff、done 和 archive。
+- `docs/policies/action-routing.md`：请求分流、状态写入边界和反例。
+- `docs/policies/recovery-and-concurrency.md`：工作对象选择、多包并发和恢复规则。
+- `docs/policies/state-and-gates.md`：阶段、门禁、验证、交接、完成和归档。
 - `docs/policies/materials.md`：材料、discovery、intake 和事实边界。
-- `docs/policies/services-and-environment.md`：服务登记、`service_refs` 语义和外部环境边界。
-- `docs/policies/agent-coordination.md`：Codex skills、子代理复核和高风险协作。
-- `docs/policies/lifecycle-semantics.md`：生命周期细节。
-- `docs/policies/model-schema.md`：核心模型和 schema 细节。
+- `docs/policies/services-and-environment.md`：服务登记、多服务协作、环境和 Git 边界。
+- `docs/policies/agent-coordination.md`：skills、子代理、复核和接续方式。
+- `docs/policies/lifecycle-semantics.md`：生命周期语义。
+- `docs/policies/model-schema.md`：核心模型和 schema 语义。
 
 ## 本地 Skills
 
-本仓库的 Workbench skills 位于 `.agents/skills/`。
+本仓库的 Workbench skills 位于 `.agents/skills/`，以本仓库版本为准。
 
-当任务涉及恢复现场、任务推进、验证交接或版本归档时，优先查看并按需使用这里的 skills。不要默认到其他仓库或全局目录寻找同名 Workbench skills。
+- `workbench-resume`：恢复现场、选择工作对象、决定读取深度。
+- `workbench-task`：材料、需求、任务、准备和阶段推进。
+- `workbench-evidence`：证据、验证、交接和 done 判断。
+- `workbench-archive`：需求关闭、归档授权、预检和冷历史读取。
 
-skills 应提供真实操作规程，不只是短提醒；但状态真源仍是 `CURRENT.md`、包 YAML、evidence 和用户确认。
+skills 是操作规程；状态修改仍通过 CLI 和包 YAML 完成。
 
 ## 自动提醒与健康检查
 
-启动提醒和健康检查都是辅助信号，不是状态真源。
-
-不要根据提醒或健康检查自动推进阶段、归档、修复文件或替代 evidence；需要维护细节时再查看 README、WORKSPACE 或对应 policy。
+`.codex/hooks.json` 只提供轻量提醒，不写状态、不运行 doctor、不推进阶段、不归档。`doctor check` 是只读健康检查，只能报告状态问题，不能替代人工判断、evidence、用户验收或风险接受。

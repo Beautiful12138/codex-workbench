@@ -3,7 +3,7 @@ from __future__ import annotations
 from enum import Enum
 from typing import Annotated, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 
 CURRENT_SCHEMA_VERSION = "0.1"
@@ -227,6 +227,7 @@ class RequirementState(WorkbenchModel):
 class TaskState(WorkbenchModel):
     schema_version: SchemaVersion
     id: NonEmptyString
+    requirement_id: NonEmptyString
     title: NonEmptyString
     stage: TaskStage = TaskStage.DRAFT
     next_step: NonEmptyString | None = None
@@ -244,6 +245,15 @@ class TaskState(WorkbenchModel):
     working_scope: list[str] = Field(default_factory=list)
     likely_touchpoints: list[str] = Field(default_factory=list)
     risk_triggers: list[str] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def require_requirement_prefixed_id(self) -> "TaskState":
+        expected_prefix = f"{self.requirement_id}-"
+        if not self.id.startswith(expected_prefix):
+            raise ValueError(
+                f"task_id_requirement_prefix_mismatch: {self.requirement_id} -> {self.id}"
+            )
+        return self
 
 
 class ServiceEntry(WorkbenchModel):

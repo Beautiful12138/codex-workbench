@@ -112,15 +112,58 @@ def test_hooks_json_and_scripts_are_short_read_only_reminders(tmp_path: Path) ->
     assert len(prompt_text) < 420
 
 
-def test_workbench_skills_are_concise_codex_skills() -> None:
-    expected = {
-        "workbench-resume",
-        "workbench-task",
-        "workbench-evidence",
-        "workbench-archive",
+def test_runtime_guidance_covers_multi_package_workbench_contract() -> None:
+    agents_text = (PROJECT_ROOT / "AGENTS.md").read_text(encoding="utf-8")
+    current_text = (PROJECT_ROOT / "CURRENT.md").read_text(encoding="utf-8")
+    workspace_text = (PROJECT_ROOT / "WORKSPACE.md").read_text(encoding="utf-8")
+    recovery_policy = PROJECT_ROOT / "docs" / "policies" / "recovery-and-concurrency.md"
+
+    assert "多个需求、多个任务、多个服务" in agents_text
+    assert "工作对象选择" in agents_text
+    assert "显式路径" in agents_text
+    assert "不作为单任务锁" in current_text
+    assert "并发工作单元" in workspace_text
+    assert recovery_policy.exists()
+    policy_text = recovery_policy.read_text(encoding="utf-8")
+    assert "显式路径优先" in policy_text
+    assert "generated recovery" in policy_text
+    assert "无法唯一判断" in policy_text
+
+
+def test_workbench_skills_are_runtime_procedures() -> None:
+    required = {
+        "workbench-resume": [
+            "适用场景",
+            "读取顺序",
+            "工作对象选择",
+            "停止点",
+            "多个 active task",
+        ],
+        "workbench-task": [
+            "适用场景",
+            "material",
+            "discovery",
+            "intake",
+            "task prepare",
+            "阶段推进",
+        ],
+        "workbench-evidence": [
+            "适用场景",
+            "evidence create",
+            "validation apply",
+            "handoff set",
+            "不能算 evidence",
+        ],
+        "workbench-archive": [
+            "适用场景",
+            "requirement close",
+            "archive preflight",
+            "archive version",
+            "冷历史",
+        ],
     }
 
-    for name in expected:
+    for name, required_phrases in required.items():
         skill_path = PROJECT_ROOT / ".agents" / "skills" / name / "SKILL.md"
         assert skill_path.exists()
         text = skill_path.read_text(encoding="utf-8")
@@ -134,11 +177,12 @@ def test_workbench_skills_are_concise_codex_skills() -> None:
         assert frontmatter["description"].startswith("Use when")
         assert "codex-workbench" in frontmatter["description"]
         assert len(frontmatter["description"]) < 280
-        assert len(body.splitlines()) < 90
-        assert "## When to Use" not in body
-        assert "README.md" not in body
-        assert "CHANGELOG" not in body
-        assert "codex-workbench-philosophy" not in body
+        assert len(body.splitlines()) >= 45
+        for phrase in required_phrases:
+            assert phrase in body
+        assert "最终目标" not in body
+        assert "建设期" not in body
+        assert "codex-workbench-final-target" not in body
 
 
 def test_dogfood_cli_runs_material_to_handoff_close_and_archive(tmp_path: Path) -> None:
@@ -234,7 +278,7 @@ def test_dogfood_cli_runs_material_to_handoff_close_and_archive(tmp_path: Path) 
         [
             "task",
             "create",
-            "TASK-DOGFOOD",
+            "REQ-DOGFOOD-TASK-DOGFOOD",
             "--requirement-id",
             "REQ-DOGFOOD",
             "--title",
@@ -258,15 +302,15 @@ def test_dogfood_cli_runs_material_to_handoff_close_and_archive(tmp_path: Path) 
 
     requirement_yaml = tmp_path / "docs" / "active" / "REQ-DOGFOOD" / "requirement.yaml"
     requirement = yaml.safe_load(requirement_yaml.read_text(encoding="utf-8"))
-    assert requirement["task_refs"] == ["TASK-DOGFOOD"]
+    assert requirement["task_refs"] == ["REQ-DOGFOOD-TASK-DOGFOOD"]
 
     invoke_ok(
         [
             "evidence",
             "create",
-            "EV-TASK-DOGFOOD",
+            "EV-REQ-DOGFOOD-TASK-DOGFOOD",
             "--task-id",
-            "TASK-DOGFOOD",
+            "REQ-DOGFOOD-TASK-DOGFOOD",
             "--conclusion",
             "passed",
             "--key-output",
@@ -281,9 +325,9 @@ def test_dogfood_cli_runs_material_to_handoff_close_and_archive(tmp_path: Path) 
         [
             "validation",
             "apply",
-            "TASK-DOGFOOD",
+            "REQ-DOGFOOD-TASK-DOGFOOD",
             "--evidence-id",
-            "EV-TASK-DOGFOOD",
+            "EV-REQ-DOGFOOD-TASK-DOGFOOD",
             "--status",
             "passed",
             "--workspace-root",
@@ -294,7 +338,7 @@ def test_dogfood_cli_runs_material_to_handoff_close_and_archive(tmp_path: Path) 
         [
             "handoff",
             "set",
-            "TASK-DOGFOOD",
+            "REQ-DOGFOOD-TASK-DOGFOOD",
             "--status",
             "accepted",
             "--note",
@@ -307,7 +351,7 @@ def test_dogfood_cli_runs_material_to_handoff_close_and_archive(tmp_path: Path) 
         [
             "task",
             "set-stage",
-            "TASK-DOGFOOD",
+            "REQ-DOGFOOD-TASK-DOGFOOD",
             "--stage",
             "done",
             "--workspace-root",
@@ -390,6 +434,6 @@ def test_dogfood_cli_runs_material_to_handoff_close_and_archive(tmp_path: Path) 
     assert "archive preflight clean" in preflight_output
     assert "archived docs/archive/0.1.0-dogfood/archive.yaml" in archive_output
     assert not (tmp_path / "docs" / "active" / "REQ-DOGFOOD").exists()
-    assert not (tmp_path / "docs" / "active" / "TASK-DOGFOOD").exists()
+    assert not (tmp_path / "docs" / "active" / "REQ-DOGFOOD-TASK-DOGFOOD").exists()
     assert (tmp_path / "docs" / "archive" / "0.1.0-dogfood" / "REQ-DOGFOOD").exists()
-    assert (tmp_path / "docs" / "archive" / "0.1.0-dogfood" / "TASK-DOGFOOD").exists()
+    assert (tmp_path / "docs" / "archive" / "0.1.0-dogfood" / "REQ-DOGFOOD-TASK-DOGFOOD").exists()

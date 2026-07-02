@@ -31,7 +31,7 @@ def create_workspace(root: Path) -> None:
 def write_task(
     root: Path,
     *,
-    task_id: str = "TASK-001",
+    task_id: str = "REQ-001-TASK-001",
     stage: str = "in_progress",
     process_level: str = "standard",
     risk_level: str = "standard",
@@ -45,9 +45,11 @@ def write_task(
 ) -> Path:
     task_dir = root / "docs" / "active" / task_id
     task_dir.mkdir(parents=True)
+    requirement_id = task_id.split("-TASK-", 1)[0] if "-TASK-" in task_id else "REQ-001"
     payload = {
         "schema_version": "0.1",
         "id": task_id,
+        "requirement_id": requirement_id,
         "title": "实现 Doctor",
         "stage": stage,
         "process_level": process_level,
@@ -66,15 +68,40 @@ def write_task(
         encoding="utf-8",
     )
     task_md = task_dir / "task.md"
-    task_md.write_text("# TASK-001\n", encoding="utf-8")
+    task_md.write_text(f"# {task_id}\n", encoding="utf-8")
+    _upsert_requirement_ref(root, requirement_id, task_id)
     return task_md
+
+
+def _upsert_requirement_ref(root: Path, requirement_id: str, task_id: str) -> None:
+    requirement_dir = root / "docs" / "active" / requirement_id
+    requirement_dir.mkdir(parents=True, exist_ok=True)
+    requirement_yaml = requirement_dir / "requirement.yaml"
+    if requirement_yaml.exists():
+        payload = yaml.safe_load(requirement_yaml.read_text(encoding="utf-8"))
+    else:
+        payload = {
+            "schema_version": "0.1",
+            "id": requirement_id,
+            "title": "测试需求",
+            "goal": "支撑 doctor 测试。",
+            "readiness": {"status": "readable", "confirmed_by_user": True},
+            "task_refs": [],
+        }
+    task_refs = payload.setdefault("task_refs", [])
+    if task_id not in task_refs:
+        task_refs.append(task_id)
+    requirement_yaml.write_text(
+        yaml.safe_dump(payload, allow_unicode=True, sort_keys=False),
+        encoding="utf-8",
+    )
 
 
 def write_evidence(
     root: Path,
     *,
-    task_id: str = "TASK-001",
-    evidence_id: str = "EV-TASK-001",
+    task_id: str = "REQ-001-TASK-001",
+    evidence_id: str = "EV-REQ-001-TASK-001",
     conclusion: str = "passed",
 ) -> None:
     task_dir = root / "docs" / "active" / task_id
@@ -155,8 +182,8 @@ def test_doctor_check_reports_unknown_service_ref_as_blocking(tmp_path: Path) ->
 
 def test_doctor_check_reports_each_unknown_service_ref(tmp_path: Path) -> None:
     create_workspace(tmp_path)
-    write_task(tmp_path, task_id="TASK-001", service_refs=["missing-one"])
-    write_task(tmp_path, task_id="TASK-002", service_refs=["missing-two"])
+    write_task(tmp_path, task_id="REQ-001-TASK-001", service_refs=["missing-one"])
+    write_task(tmp_path, task_id="REQ-001-TASK-002", service_refs=["missing-two"])
 
     result = runner.invoke(app, ["doctor", "check", "--workspace-root", str(tmp_path)])
 
@@ -275,7 +302,7 @@ def test_doctor_check_allows_non_passed_evidence_before_done(tmp_path: Path) -> 
     write_task(
         tmp_path,
         stage="verification_pending",
-        validation={"status": "failed", "evidence_ref": "EV-TASK-001"},
+        validation={"status": "failed", "evidence_ref": "EV-REQ-001-TASK-001"},
     )
     write_evidence(tmp_path, conclusion="failed")
 
@@ -291,7 +318,7 @@ def test_doctor_check_does_not_treat_markdown_keywords_as_findings(tmp_path: Pat
     task_md.write_text(
         "\n".join(
             [
-                "# TASK-001",
+                "# REQ-001-TASK-001",
                 "",
                 "这是一段普通中文说明，提到了部署、权限、真实数据、token 和 archive。",
                 "这些词只是在解释非目标，不应该被 Doctor 当成风险结论。",

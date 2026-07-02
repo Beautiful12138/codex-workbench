@@ -287,7 +287,8 @@ def _file_id_conflicts(records: list[_YamlRecord], kind: str) -> list[str]:
 
 
 def _task_ref_conflicts(requirements: list[_YamlRecord], tasks: list[_YamlRecord]) -> list[str]:
-    task_ids = {record.id for record in tasks if record.id}
+    task_by_id = {record.id: record for record in tasks if record.id}
+    requirement_by_id = {record.id: record for record in requirements if record.id}
     conflicts: list[str] = []
     for requirement in requirements:
         if not requirement.data:
@@ -296,8 +297,36 @@ def _task_ref_conflicts(requirements: list[_YamlRecord], tasks: list[_YamlRecord
         if not isinstance(task_refs, list):
             continue
         for task_ref in task_refs:
-            if str(task_ref) not in task_ids:
+            task_id = str(task_ref).strip()
+            task = task_by_id.get(task_id)
+            if task is None:
                 conflicts.append(f"unknown_task_ref: {requirement.id} -> {task_ref}")
+                continue
+            task_requirement_id = str(task.data.get("requirement_id", "")).strip() if task.data else ""
+            if not task_requirement_id:
+                conflicts.append(f"missing_task_requirement_id: {task_id}")
+            elif task_requirement_id != requirement.id:
+                conflicts.append(
+                    f"task_requirement_mismatch: {requirement.id} -> {task_id} requirement_id={task_requirement_id}"
+                )
+    for task in tasks:
+        if not task.data:
+            continue
+        task_requirement_id = str(task.data.get("requirement_id", "")).strip()
+        if not task_requirement_id:
+            conflicts.append(f"missing_task_requirement_id: {task.id}")
+            continue
+        if not task.id.startswith(f"{task_requirement_id}-"):
+            conflicts.append(
+                f"task_id_requirement_prefix_mismatch: {task_requirement_id} -> {task.id}"
+            )
+        requirement = requirement_by_id.get(task_requirement_id)
+        if requirement is None:
+            conflicts.append(f"unknown_requirement_ref: {task.id} -> {task_requirement_id}")
+            continue
+        task_refs = requirement.data.get("task_refs", []) if requirement.data else []
+        if isinstance(task_refs, list) and task.id not in {str(item).strip() for item in task_refs}:
+            conflicts.append(f"missing_requirement_task_ref: {task_requirement_id} -> {task.id}")
     return conflicts
 
 
@@ -408,18 +437,26 @@ def _render_recovery(snapshot: _IndexSnapshot) -> str:
     ]
     if active_tasks:
         active_tasks = sorted(active_tasks, key=lambda item: item.id)
-        for task in active_tasks[:RECOVERY_TASK_LIMIT]:
-            stage = task.data.get("stage", "unknown") if task.data else "unknown"
-            services = ", ".join(str(item) for item in task.data.get("service_refs", [])) if task.data else ""
-            next_step = str(task.data.get("next_step", "")).strip() if task.data else ""
-            suffix_parts = []
-            if services:
-                suffix_parts.append(f"service_refs={services}")
-            if next_step:
-                suffix_parts.append(f"next={next_step}")
-            suffix = f" {'; '.join(suffix_parts)}" if suffix_parts else ""
-            lines.append(f"- task `{task.id}` {task.title} [{stage}]{suffix}")
-        remaining = len(active_tasks) - RECOVERY_TASK_LIMIT
+        requirement_by_id = {requirement.id: requirement for requirement in snapshot.requirements}
+        tasks_by_requirement: dict[str, list[_YamlRecord]] = {}
+        for task in active_tasks:
+            requirement_id = str(task.data.get("requirement_id", "")).strip() if task.data else ""
+            bucket = requirement_id or "(unlinked)"
+            tasks_by_requirement.setdefault(bucket, []).append(task)
+
+        shown_tasks = 0
+        for requirement_id in sorted(tasks_by_requirement):
+            if shown_tasks >= RECOVERY_TASK_LIMIT:
+                break
+            requirement = requirement_by_id.get(requirement_id)
+            title = requirement.title if requirement else "(missing requirement)"
+            lines.append(f"- requirement `{requirement_id}` {title}")
+            for task in tasks_by_requirement[requirement_id]:
+                if shown_tasks >= RECOVERY_TASK_LIMIT:
+                    break
+                lines.append(f"  - {_task_recovery_line(task)}")
+                shown_tasks += 1
+        remaining = len(active_tasks) - shown_tasks
         if remaining > 0:
             lines.append(f"- and {remaining} more active tasks")
     else:
@@ -449,6 +486,42 @@ def _render_recovery(snapshot: _IndexSnapshot) -> str:
     lines.extend(["", "## Conflicts", ""])
     lines.extend(_limited_conflict_lines(snapshot.conflicts))
     return _final_newline(lines)
+
+
+def _task_recovery_line(task: _YamlRecord) -> str:
+    data = task.data or {}
+    stage = data.get("stage", "unknown")
+    process_level = str(data.get("process_level", "")).strip()
+    risk_level = str(data.get("risk_level", "")).strip()
+    services = ", ".join(str(item) for item in data.get("service_refs", []))
+    next_step = str(data.get("next_step", "")).strip()
+    blocked = data.get("blocked", {})
+    blocked_reason = ""
+    if isinstance(blocked, dict):
+        blocked_reason = str(blocked.get("reason", "")).strip()
+    validation = data.get("validation", {})
+    validation_status = ""
+    evidence_ref = ""
+    if isinstance(validation, dict):
+        validation_status = str(validation.get("status", "")).strip()
+        evidence_ref = str(validation.get("evidence_ref", "")).strip()
+
+    suffix_parts = []
+    if risk_level or process_level:
+        suffix_parts.append(f"risk={risk_level or 'unknown'}/process={process_level or 'unknown'}")
+    if services:
+        suffix_parts.append(f"service_refs={services}")
+    if next_step:
+        suffix_parts.append(f"next={next_step}")
+    if blocked_reason:
+        suffix_parts.append(f"blocked={blocked_reason}")
+    if validation_status:
+        validation_text = f"validation={validation_status}"
+        if evidence_ref:
+            validation_text = f"{validation_text} evidence={evidence_ref}"
+        suffix_parts.append(validation_text)
+    suffix = f" {'; '.join(suffix_parts)}" if suffix_parts else ""
+    return f"task `{task.id}` {task.title} [{stage}]{suffix}"
 
 
 def _requirement_lines(records: list[_YamlRecord]) -> list[str]:

@@ -398,7 +398,7 @@ def requirement_close(
 
 @task_app.command("create")
 def task_create(
-    task_id: str = typer.Argument(..., help="任务 ID，例如 TASK-001。"),
+    task_id: str = typer.Argument(..., help="任务 ID，例如 REQ-001-TASK-001。"),
     requirement_id: str = typer.Option(..., "--requirement-id", help="所属需求 ID。"),
     title: str = typer.Option(..., "--title", help="任务标题。"),
     user_goal: str = typer.Option(..., "--user-goal", help="用户目标。"),
@@ -447,7 +447,7 @@ def task_create(
 
 @task_app.command("update-packet")
 def task_update_packet(
-    task_id: str = typer.Argument(..., help="任务 ID，例如 TASK-001。"),
+    task_id: str = typer.Argument(..., help="任务 ID，例如 REQ-001-TASK-001。"),
     next_step: str = typer.Option(..., "--next", help="task.yaml 中的下一步恢复提示。"),
     workspace_root: Path = typer.Option(Path("."), "--workspace-root", help="Workbench 根目录。"),
     dry_run: bool = typer.Option(False, "--dry-run", help="只显示将写入的文件。"),
@@ -468,7 +468,7 @@ def task_update_packet(
 
 @task_app.command("set-stage")
 def task_set_stage(
-    task_id: str = typer.Argument(..., help="任务 ID，例如 TASK-001。"),
+    task_id: str = typer.Argument(..., help="任务 ID，例如 REQ-001-TASK-001。"),
     stage: str = typer.Option(..., "--stage", help="目标阶段。"),
     workspace_root: Path = typer.Option(Path("."), "--workspace-root", help="Workbench 根目录。"),
     dry_run: bool = typer.Option(False, "--dry-run", help="只显示将写入的文件。"),
@@ -487,7 +487,7 @@ def task_set_stage(
 
 @task_app.command("check")
 def task_check(
-    task_id: str = typer.Argument(..., help="任务 ID，例如 TASK-001。"),
+    task_id: str = typer.Argument(..., help="任务 ID，例如 REQ-001-TASK-001。"),
     to_stage: str = typer.Option(..., "--to", help="目标阶段。"),
     workspace_root: Path = typer.Option(Path("."), "--workspace-root", help="Workbench 根目录。"),
 ) -> None:
@@ -509,7 +509,7 @@ def task_check(
 
 @task_app.command("prepare")
 def task_prepare(
-    task_id: str = typer.Argument(..., help="任务 ID，例如 TASK-001。"),
+    task_id: str = typer.Argument(..., help="任务 ID，例如 REQ-001-TASK-001。"),
     working_scope: list[str] = typer.Option(
         ...,
         "--working-scope",
@@ -567,7 +567,7 @@ def task_prepare(
 
 @task_app.command("review-create")
 def task_review_create(
-    task_id: str = typer.Argument(..., help="任务 ID，例如 TASK-001。"),
+    task_id: str = typer.Argument(..., help="任务 ID，例如 REQ-001-TASK-001。"),
     workspace_root: Path = typer.Option(Path("."), "--workspace-root", help="Workbench 根目录。"),
     dry_run: bool = typer.Option(False, "--dry-run", help="只显示将写入的文件。"),
 ) -> None:
@@ -590,7 +590,7 @@ def task_review_create(
 
 @task_app.command("implementation-create")
 def task_implementation_create(
-    task_id: str = typer.Argument(..., help="任务 ID，例如 TASK-001。"),
+    task_id: str = typer.Argument(..., help="任务 ID，例如 REQ-001-TASK-001。"),
     workspace_root: Path = typer.Option(Path("."), "--workspace-root", help="Workbench 根目录。"),
     dry_run: bool = typer.Option(False, "--dry-run", help="只显示将写入的文件。"),
 ) -> None:
@@ -613,7 +613,7 @@ def task_implementation_create(
 
 @task_app.command("block")
 def task_block(
-    task_id: str = typer.Argument(..., help="任务 ID，例如 TASK-001。"),
+    task_id: str = typer.Argument(..., help="任务 ID，例如 REQ-001-TASK-001。"),
     reason: str = typer.Option(..., "--reason", help="阻塞原因。"),
     blocked_by: str = typer.Option(..., "--blocked-by", help="阻塞方。"),
     resume_condition: str = typer.Option(..., "--resume-condition", help="恢复条件。"),
@@ -643,7 +643,7 @@ def task_block(
 
 @task_app.command("obsolete")
 def task_obsolete(
-    task_id: str = typer.Argument(..., help="任务 ID，例如 TASK-001。"),
+    task_id: str = typer.Argument(..., help="任务 ID，例如 REQ-001-TASK-001。"),
     reason: str = typer.Option(..., "--reason", help="废弃原因。"),
     workspace_root: Path = typer.Option(Path("."), "--workspace-root", help="Workbench 根目录。"),
     dry_run: bool = typer.Option(False, "--dry-run", help="只显示将写入的文件。"),
@@ -884,7 +884,7 @@ def intake_confirm(
 
 @evidence_app.command("create")
 def evidence_create(
-    evidence_id: str = typer.Argument(..., help="证据 ID，例如 EV-TASK-001。"),
+    evidence_id: str = typer.Argument(..., help="证据 ID，例如 EV-REQ-001-TASK-001。"),
     task_id: str = typer.Option(..., "--task-id", help="关联任务 ID。"),
     conclusion: str = typer.Option(..., "--conclusion", help="证据结论。"),
     key_output: list[str] = typer.Option(
@@ -925,7 +925,7 @@ def evidence_create(
 
 @validation_app.command("apply")
 def validation_apply(
-    task_id: str = typer.Argument(..., help="任务 ID，例如 TASK-001。"),
+    task_id: str = typer.Argument(..., help="任务 ID，例如 REQ-001-TASK-001。"),
     evidence_id: str = typer.Option(..., "--evidence-id", help="要应用的 evidence ID。"),
     status: str = typer.Option(..., "--status", help="验证结论。"),
     workspace_root: Path = typer.Option(Path("."), "--workspace-root", help="Workbench 根目录。"),
@@ -951,7 +951,7 @@ def validation_apply(
 
 @handoff_app.command("set")
 def handoff_set(
-    task_id: str = typer.Argument(..., help="任务 ID，例如 TASK-001。"),
+    task_id: str = typer.Argument(..., help="任务 ID，例如 REQ-001-TASK-001。"),
     status: str = typer.Option(..., "--status", help="handoff 状态。"),
     note: str | None = typer.Option(None, "--note", help="交接说明。"),
     workspace_root: Path = typer.Option(Path("."), "--workspace-root", help="Workbench 根目录。"),

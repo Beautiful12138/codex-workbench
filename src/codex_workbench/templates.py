@@ -216,6 +216,7 @@ def render_task_package(context: TaskTemplateContext) -> dict[str, str]:
     yaml_payload: dict[str, Any] = {
         "schema_version": "0.1",
         "id": context.task_id,
+        "requirement_id": context.requirement_id,
         "title": context.title,
         "stage": context.stage,
         "next_step": context.current_next_step,
@@ -434,7 +435,10 @@ def _render_requirement_markdown(context: RequirementTemplateContext) -> str:
 def _render_evidence_markdown(context: EvidenceTemplateContext) -> str:
     return _render_work_product_template(
         "evidence.md",
-        {"evidence_id": context.evidence_id},
+        {
+            "evidence_id": context.evidence_id,
+            "task_id": context.task_id,
+        },
     )
 
 

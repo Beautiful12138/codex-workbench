@@ -90,6 +90,7 @@ def create_task_package(
         )
 
     root = Path(workspace_root).expanduser().resolve()
+    _assert_task_id_matches_requirement(context.requirement_id, context.task_id)
     requirement_update = _prepare_requirement_task_ref_update(
         root,
         context.requirement_id,
@@ -584,6 +585,17 @@ def _assert_known_service_refs(root: Path, task: TaskState) -> None:
         )
 
 
+def _assert_task_id_matches_requirement(requirement_id: str, task_id: str) -> None:
+    clean_requirement_id = validate_package_ref(requirement_id)
+    clean_task_id = validate_package_ref(task_id)
+    if not clean_task_id.startswith(f"{clean_requirement_id}-"):
+        raise WorkbenchError(
+            ErrorCode.VALIDATION_ERROR,
+            f"task_id_requirement_prefix_mismatch: {clean_requirement_id} -> {clean_task_id}",
+            exit_code=2,
+        )
+
+
 def _assert_requirement_allows_task(root: Path, requirement_id: str) -> None:
     requirement_yaml = _package_file(root, "docs/active", requirement_id, "requirement.yaml")
     if not requirement_yaml.exists():
@@ -666,4 +678,3 @@ def _rollback_created_files(paths: tuple[Path, ...], *, dry_run: bool) -> None:
             parent.rmdir()
         except OSError:
             pass
-

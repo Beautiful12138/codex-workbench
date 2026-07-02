@@ -1,5 +1,6 @@
 schema_version: '0.1'
-id: TASK-001
+id: REQ-001-TASK-001
+requirement_id: REQ-001
 title: 校准模板体感
 stage: draft
 next_step: 先写失败测试。

@@ -1,29 +1,29 @@
 # 核心模型与 schema
 
-本文件记录 v1 的模型边界。机器状态由 YAML 承载，Python 侧用 Pydantic 模型校验；Markdown 只负责解释给人和 Codex 看。
+本文件记录运行期状态模型边界。机器状态由 YAML 承载，Python 侧用 Pydantic 模型校验；Markdown 只负责解释给人和 Codex 看。
 
 ## schema_version
 
-v1 当前只支持：
+当前支持：
 
 ```yaml
 schema_version: "0.1"
 ```
 
-未知版本必须校验失败。自动迁移不是 v1 默认能力，后续如需要迁移，应由单独任务定义。
-
-状态文件必须显式写出 `schema_version`，工具不应在读取时静默补齐缺失版本。
+状态文件必须显式写出 `schema_version`。读取时不静默补齐缺失版本；未知版本校验失败。
 
 ## 核心对象
 
 - `WorkspaceState`：工作空间入口状态。
 - `RequirementState`：需求边界容器，不是执行界面。
 - `TaskState`：最小可恢复执行界面。
-- `ServiceRegistry`：服务可达性登记；任务可用 `service_refs` 标记相关服务，但它不是修改白名单；写出的 service ref 必须能对应已登记服务。
-- `EvidenceState`：验证事实和未验证项。
-- `ActionNoteState`：非任务动作记录，`action_type` 只允许 `maintenance_action | ops_action | ephemeral_check`，`status` 只允许 `planned | executed | partial | failed | reverted`，不能替代任务 evidence。
-- `ChangeRecordState`：只记录正式 `scope_change`；`implementation_adjustment` 和 `scope_clarification` 只用于轻量分类。
-- `DecisionState` / `ArchiveEntryState`：长期决策和版本化冷历史，默认不作为当前记忆。
+- `ServiceRegistry`：服务登记和可达性输入；`service_refs` 不是修改白名单。
+- `EvidenceState`：验证事实、结论和未验证项。
+- `ActionNoteState`：非任务动作记录，不能替代任务 evidence。
+- `ChangeRecordState`：正式范围、验收、契约或真实后果变化记录。
+- `DecisionState`：长期决策，默认冷路径。
+- `SuspicionState`：疑点线索，防止证据不足时静默优化。
+- `ArchiveManifestState`：版本归档清单。
 
 ## Task stage
 
@@ -33,7 +33,19 @@ schema_version: "0.1"
 draft | ready | in_progress | verification_pending | blocked | done | obsolete
 ```
 
-review、implementation、validation、handoff、blocked 是维度，不是额外主阶段。
+`review`、`implementation`、`validation`、`handoff`、`blocked` 是维度，不是额外主阶段。
+
+## task 归属
+
+任务包的机器真源是 `task.yaml`：
+
+- `id` 是全局唯一 task id。
+- `requirement_id` 是所属 requirement id。
+- 新 task id 使用 `<requirement_id>-TASK-...` 形式，例如 `REQ-001-TASK-001`。
+- `task.yaml:id` 必须以 `task.yaml:requirement_id` 加 `-` 作为前缀。
+- requirement 的 `task_refs` 必须引用对应 task id。
+
+任务包内 Markdown 标题应带完整 task id，帮助人和 Codex 阅读；机器校验不从 Markdown 反推归属。
 
 ## process 与 risk
 
@@ -55,17 +67,21 @@ low | standard | high | critical
 
 任务可以按需表达：
 
-- `handoff.status`: `not_required | waiting_user_validation | accepted | rejected`
-- `blocked`: reason、blocked_by、resume_condition、resume_stage
-- `obsolete_reason`
 - `working_scope`
-- `likely_touchpoints` / `risk_triggers`
+- `likely_touchpoints`
+- `risk_triggers`
+- `review.status` / `review.ref`
+- `implementation.ready` / `implementation.conclusion` / `implementation.ref`
+- `validation.status` / `validation.evidence_ref` / `validation.unverified_items`
+- `handoff.status` / `handoff.note`
+- `blocked.reason` / `blocked.blocked_by` / `blocked.resume_condition` / `blocked.resume_stage`
+- `obsolete_reason`
 
-可选字段只有在有真实信息增量时才应写入 YAML 或 Markdown，避免空仪式。review / implementation 的 Markdown 如需生成，使用任务包本地 `review.md` / `implementation.md`，并由 `review.ref` / `implementation.ref` 记录相对引用；它们是解释层，不替代 YAML 中的 review status 或 implementation-ready 结论。
+可选字段只有在有真实信息增量时才写入，避免空仪式。
 
 ## 知识分层
 
-所有承载事实的对象都可以使用 `Knowledge`：
+承载事实的对象可以使用 `Knowledge`：
 
 - `confirmed_facts`
 - `system_observations`
@@ -73,8 +89,8 @@ low | standard | high | critical
 - `assumptions`
 - `questions_for_user`
 
-新窗口和生成视图不得把推断升级成确认事实。
+新窗口和 generated view 不能把推断升级成确认事实。
 
-## 当前模型边界
+## Markdown 边界
 
-本文件只记录 v1 稳定模型和 schema 语义。CLI、doctor、模板、index、service status、hooks 和 skills 可以使用这些模型，但具体行为以对应模块、命令和 policy 为准。
+Markdown 是解释层，不是机器状态真源。CLI 可以生成标题骨架，但不应把 YAML 大段复读进 Markdown。任务正文由 Codex 根据真实场景填写。

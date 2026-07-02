@@ -62,7 +62,7 @@ def test_wheel_force_include_matches_work_product_template_fallback() -> None:
 
 def test_render_task_package_keeps_markdown_skeleton_and_yaml_truth() -> None:
     context = TaskTemplateContext(
-        task_id="TASK-001",
+        task_id="REQ-001-TASK-001",
         title="校准模板体感",
         requirement_id="REQ-001",
         user_goal="让 Codex 快速进入任务目标。",
@@ -79,41 +79,41 @@ def test_render_task_package_keeps_markdown_skeleton_and_yaml_truth() -> None:
     files = render_task_package(context)
 
     assert sorted(files) == [
-        "docs/active/TASK-001/task.md",
-        "docs/active/TASK-001/task.yaml",
+        "docs/active/REQ-001-TASK-001/task.md",
+        "docs/active/REQ-001-TASK-001/task.yaml",
     ]
-    assert files["docs/active/TASK-001/task.md"] == (
-        GOLDEN_DIR / "task" / "TASK-001.md"
+    assert files["docs/active/REQ-001-TASK-001/task.md"] == (
+        GOLDEN_DIR / "task" / "REQ-001-TASK-001.md"
     ).read_text(encoding="utf-8")
-    assert files["docs/active/TASK-001/task.yaml"] == (
-        GOLDEN_DIR / "task" / "TASK-001.yaml"
+    assert files["docs/active/REQ-001-TASK-001/task.yaml"] == (
+        GOLDEN_DIR / "task" / "REQ-001-TASK-001.yaml"
     ).read_text(encoding="utf-8")
-    TaskState.model_validate(yaml.safe_load(files["docs/active/TASK-001/task.yaml"]))
-    task_yaml = yaml.safe_load(files["docs/active/TASK-001/task.yaml"])
+    TaskState.model_validate(yaml.safe_load(files["docs/active/REQ-001-TASK-001/task.yaml"]))
+    task_yaml = yaml.safe_load(files["docs/active/REQ-001-TASK-001/task.yaml"])
     assert task_yaml["process_level"] == "micro"
     assert task_yaml["risk_level"] == "low"
     assert task_yaml["next_step"] == "先写失败测试。"
     assert task_yaml["service_refs"] == []
-    markdown = files["docs/active/TASK-001/task.md"]
+    markdown = files["docs/active/REQ-001-TASK-001/task.md"]
     assert "让 Codex 快速进入任务目标。" not in markdown
     assert "第一屏先看到目标" not in markdown
     assert "渲染任务包 Markdown。" not in markdown
     assert "先写失败测试。" not in markdown
-    assert files["docs/active/TASK-001/task.md"].index("## 用户目标") < files[
-        "docs/active/TASK-001/task.md"
+    assert files["docs/active/REQ-001-TASK-001/task.md"].index("## 用户目标") < files[
+        "docs/active/REQ-001-TASK-001/task.md"
     ].index("## 完成口径")
-    assert files["docs/active/TASK-001/task.md"].index("## 完成口径") < files[
-        "docs/active/TASK-001/task.md"
+    assert files["docs/active/REQ-001-TASK-001/task.md"].index("## 完成口径") < files[
+        "docs/active/REQ-001-TASK-001/task.md"
     ].index("## 范围")
-    assert files["docs/active/TASK-001/task.md"].index("## 范围") < files[
-        "docs/active/TASK-001/task.md"
+    assert files["docs/active/REQ-001-TASK-001/task.md"].index("## 范围") < files[
+        "docs/active/REQ-001-TASK-001/task.md"
     ].index("## 实现提示")
 
 
 def test_render_task_package_omits_empty_ceremony() -> None:
     files = render_task_package(
         TaskTemplateContext(
-            task_id="TASK-002",
+            task_id="REQ-001-TASK-002",
             title="保持轻量",
             requirement_id="REQ-001",
             user_goal="验证空字段不污染输出。",
@@ -125,8 +125,8 @@ def test_render_task_package_omits_empty_ceremony() -> None:
         )
     )
 
-    markdown = files["docs/active/TASK-002/task.md"]
-    yaml_text = files["docs/active/TASK-002/task.yaml"]
+    markdown = files["docs/active/REQ-001-TASK-002/task.md"]
+    yaml_text = files["docs/active/REQ-001-TASK-002/task.yaml"]
 
     assert "Review" not in markdown
     assert "Development" not in markdown
@@ -148,8 +148,8 @@ def test_render_requirement_evidence_and_action_are_minimal_and_stable() -> None
         updated_at="2026-06-30",
     )
     evidence = EvidenceTemplateContext(
-        evidence_id="EV-TASK-001",
-        task_id="TASK-001",
+        evidence_id="EV-REQ-001-TASK-001",
+        task_id="REQ-001-TASK-001",
         conclusion="passed",
         key_outputs=["pytest passed"],
         updated_at="2026-06-30",
@@ -159,7 +159,7 @@ def test_render_requirement_evidence_and_action_are_minimal_and_stable() -> None
         title="登记材料",
         summary="只记录冷路径材料。",
         action_type="maintenance_action",
-        related_refs=["TASK-001"],
+        related_refs=["REQ-001-TASK-001"],
         updated_at="2026-06-30",
     )
 
@@ -171,7 +171,7 @@ def test_render_requirement_evidence_and_action_are_minimal_and_stable() -> None
     requirement_yaml = render_requirement_package(requirement)[
         "docs/active/REQ-001/requirement.yaml"
     ]
-    evidence_md = render_evidence_document(evidence)["docs/active/TASK-001/evidence.md"]
+    evidence_md = render_evidence_document(evidence)["docs/active/REQ-001-TASK-001/evidence.md"]
     action_md = render_action_note(action)["docs/actions/ACT-001.md"]
     action_yaml = render_action_note(action)["docs/actions/ACT-001.yaml"]
 
@@ -182,11 +182,12 @@ def test_render_requirement_evidence_and_action_are_minimal_and_stable() -> None
     assert "让 Codex 专注用户任务。" not in requirement_md
     assert "模板输出稳定。" not in requirement_md
     assert "pytest passed" not in evidence_md
+    assert evidence_md.startswith("# EV-REQ-001-TASK-001 / task REQ-001-TASK-001\n")
     assert "未验证项" in evidence_md
     assert "验证结论" in evidence_md
     assert action_yaml["summary"] == "只记录冷路径材料。"
     assert action_yaml["status"] == "executed"
-    assert action_yaml["related_refs"] == ["TASK-001"]
+    assert action_yaml["related_refs"] == ["REQ-001-TASK-001"]
     assert action_md.startswith("# ACT-001 登记材料\n")
     assert "## 操作记录" in action_md
     assert "只记录冷路径材料。" not in action_md
@@ -235,15 +236,15 @@ def test_record_templates_are_opening_pages_not_forms() -> None:
 
 
 def test_render_package_local_review_and_implementation_documents() -> None:
-    context = TaskDocumentTemplateContext(task_id="TASK-001")
+    context = TaskDocumentTemplateContext(task_id="REQ-001-TASK-001")
 
     review = render_review_document(context)
     implementation = render_implementation_document(context)
 
-    assert sorted(review) == ["docs/active/TASK-001/review.md"]
-    assert sorted(implementation) == ["docs/active/TASK-001/implementation.md"]
-    assert "## 风险与暂停点" in review["docs/active/TASK-001/review.md"]
-    assert "## 验证计划" in implementation["docs/active/TASK-001/implementation.md"]
+    assert sorted(review) == ["docs/active/REQ-001-TASK-001/review.md"]
+    assert sorted(implementation) == ["docs/active/REQ-001-TASK-001/implementation.md"]
+    assert "## 风险与暂停点" in review["docs/active/REQ-001-TASK-001/review.md"]
+    assert "## 验证计划" in implementation["docs/active/REQ-001-TASK-001/implementation.md"]
 
 
 def test_template_context_rejects_empty_required_fields() -> None:
