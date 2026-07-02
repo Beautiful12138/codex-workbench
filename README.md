@@ -28,6 +28,7 @@
 普通讨论、解释和只读探索默认不写状态。只有用户明确要纳入、创建、推进、验证、关闭、归档或留下可恢复记录时，才进入 CLI 和包写入。
 
 创建 requirement、intake 草案或 task 时，可以省略 ID 和 `--updated-at`；CLI 会按当前日期生成 `REQ-YYYYMMDD-NNN` / `REQ-...-TASK-YYYYMMDD-NNN`，并写入当前时间。
+创建成功后，CLI 会回显 `created requirement_id=...` 或 `created task_id=...`，后续命令应优先使用这个回显 ID。
 
 ## 典型闭环
 

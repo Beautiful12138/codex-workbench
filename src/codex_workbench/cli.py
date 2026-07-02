@@ -369,6 +369,7 @@ def requirement_create(
         )
         result = create_requirement_package(root, context, dry_run=dry_run)
         _echo_package_result(root, result.paths, dry_run=dry_run)
+        typer.echo(f"created requirement_id={resolved_requirement_id}")
         _refresh_generated_views(root, dry_run=dry_run)
         _echo_markdown_template_hint()
     except (TemplateError, ValidationError) as exc:
@@ -450,6 +451,7 @@ def task_create(
         updated_paths = tuple(path for path in result.paths if path.parent.name == requirement_id)
         _echo_package_result(root, created_paths, dry_run=dry_run)
         _echo_package_result(root, updated_paths, dry_run=dry_run, verb="updated")
+        typer.echo(f"created task_id={resolved_task_id}")
         _refresh_generated_views(root, dry_run=dry_run)
         _echo_markdown_template_hint()
     except (TemplateError, ValidationError) as exc:
@@ -885,6 +887,7 @@ def intake_create(
         )
         result = create_intake_draft(root, context, dry_run=dry_run)
         _echo_package_result(root, result.paths, dry_run=dry_run)
+        typer.echo(f"created requirement_id={resolved_requirement_id}")
         _refresh_generated_views(root, dry_run=dry_run)
     except (TemplateError, ValidationError, ValueError) as exc:
         typer.echo(f"validation_error: {exc}", err=True)

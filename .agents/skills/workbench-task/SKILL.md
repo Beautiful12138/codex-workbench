@@ -81,7 +81,7 @@ description: Use when Codex 需要在 codex-workbench 中处理材料、discover
 
 ## 常用命令
 
-创建 requirement、intake 草案或 task 时，优先让 CLI 自动生成 ID 和当前时间；只有用户指定、导入历史或复现测试时才手写 ID。
+创建 requirement、intake 草案或 task 时，优先让 CLI 自动生成 ID 和当前时间；只有用户指定、导入历史或复现测试时才手写 ID。创建后读取 CLI 回显的 `created requirement_id=...` 或 `created task_id=...`，后续命令使用这个 ID。
 
 ```powershell
 $env:PYTHONPATH='src'

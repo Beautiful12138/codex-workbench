@@ -42,6 +42,13 @@ def invoke_ok(args: list[str]) -> str:
     return result.output
 
 
+def output_value(output: str, prefix: str) -> str:
+    for line in output.splitlines():
+        if line.startswith(prefix):
+            return line.removeprefix(prefix).strip()
+    raise AssertionError(f"missing output line: {prefix}\n{output}")
+
+
 def snapshot_files(root: Path) -> dict[str, bytes]:
     return {
         path.relative_to(root).as_posix(): path.read_bytes()
@@ -437,3 +444,221 @@ def test_dogfood_cli_runs_material_to_handoff_close_and_archive(tmp_path: Path) 
     assert not (tmp_path / "docs" / "active" / "REQ-20260702-900-TASK-20260702-001").exists()
     assert (tmp_path / "docs" / "archive" / "0.1.0-dogfood" / "REQ-20260702-900").exists()
     assert (tmp_path / "docs" / "archive" / "0.1.0-dogfood" / "REQ-20260702-900-TASK-20260702-001").exists()
+
+
+def test_dogfood_cli_runs_auto_id_material_to_archive(tmp_path: Path, monkeypatch) -> None:
+    create_workspace(tmp_path)
+    root = str(tmp_path)
+    monkeypatch.setattr(
+        "codex_workbench.timeutils.current_timestamp",
+        lambda: "2026-07-02T09:00:00+08:00",
+    )
+
+    invoke_ok(
+        [
+            "material",
+            "add",
+            "MAT-AUTO",
+            "--title",
+            "自动编号样例材料",
+            "--source",
+            "user-chat",
+            "--summary",
+            "用户希望验证 Workbench 自动编号闭环。",
+            "--received-at",
+            "2026-07-02",
+            "--workspace-root",
+            root,
+        ]
+    )
+    invoke_ok(
+        [
+            "discovery",
+            "create",
+            "DISC-AUTO",
+            "--title",
+            "自动编号样例发现",
+            "--material-ref",
+            "MAT-AUTO",
+            "--confirmed-fact",
+            "这是自动编号 dogfood。",
+            "--workspace-root",
+            root,
+            "--updated-at",
+            "2026-07-02",
+        ]
+    )
+    intake_output = invoke_ok(
+        [
+            "intake",
+            "create",
+            "--title",
+            "验证自动编号闭环",
+            "--goal",
+            "不手写需求和任务 ID 也能跑通闭环。",
+            "--acceptance",
+            "任务完成前有 evidence 和 handoff。",
+            "--material-ref",
+            "MAT-AUTO",
+            "--discovery-ref",
+            "DISC-AUTO",
+            "--workspace-root",
+            root,
+        ]
+    )
+    requirement_id = output_value(intake_output, "created requirement_id=")
+
+    invoke_ok(["intake", "confirm", requirement_id, "--workspace-root", root])
+    invoke_ok(
+        [
+            "service",
+            "add",
+            "codex-workbench",
+            "--path",
+            root,
+            "--purpose",
+            "自动编号样例关联的本地工具仓库。",
+            "--workspace-root",
+            root,
+        ]
+    )
+    task_output = invoke_ok(
+        [
+            "task",
+            "create",
+            "--requirement-id",
+            requirement_id,
+            "--title",
+            "验证自动编号任务",
+            "--user-goal",
+            "证明自动生成 task ID 后 AI 可以继续闭环。",
+            "--done",
+            "evidence 记录通过。",
+            "--done",
+            "handoff 被用户接受。",
+            "--next",
+            "记录验证事实。",
+            "--service-ref",
+            "codex-workbench",
+            "--workspace-root",
+            root,
+        ]
+    )
+    task_id = output_value(task_output, "created task_id=")
+    evidence_id = f"EV-{task_id}"
+
+    assert requirement_id == "REQ-20260702-001"
+    assert task_id == "REQ-20260702-001-TASK-20260702-001"
+    current_text = (tmp_path / "CURRENT.md").read_text(encoding="utf-8")
+    recovery_text = (tmp_path / "docs" / "generated" / "recovery.md").read_text(
+        encoding="utf-8"
+    )
+    assert task_id in current_text
+    assert task_id in recovery_text
+
+    invoke_ok(
+        [
+            "task",
+            "prepare",
+            task_id,
+            "--working-scope",
+            "只验证自动编号闭环。",
+            "--risk-trigger",
+            "需要修改外部服务仓库时暂停。",
+            "--workspace-root",
+            root,
+        ]
+    )
+    invoke_ok(["task", "set-stage", task_id, "--stage", "in_progress", "--workspace-root", root])
+    invoke_ok(
+        [
+            "evidence",
+            "create",
+            evidence_id,
+            "--task-id",
+            task_id,
+            "--conclusion",
+            "passed",
+            "--key-output",
+            "自动编号 dogfood 样例命令按预期执行。",
+            "--workspace-root",
+            root,
+            "--updated-at",
+            "2026-07-02",
+        ]
+    )
+    invoke_ok(
+        [
+            "validation",
+            "apply",
+            task_id,
+            "--evidence-id",
+            evidence_id,
+            "--status",
+            "passed",
+            "--workspace-root",
+            root,
+        ]
+    )
+    invoke_ok(
+        [
+            "handoff",
+            "set",
+            task_id,
+            "--status",
+            "accepted",
+            "--note",
+            "用户确认自动编号闭环可接受。",
+            "--workspace-root",
+            root,
+        ]
+    )
+    invoke_ok(["task", "set-stage", task_id, "--stage", "done", "--workspace-root", root])
+    invoke_ok(
+        [
+            "requirement",
+            "close",
+            requirement_id,
+            "--note",
+            "用户确认需求已关闭。",
+            "--workspace-root",
+            root,
+        ]
+    )
+    preflight_output = invoke_ok(
+        [
+            "archive",
+            "preflight",
+            "0.1.0-auto-dogfood",
+            "--requirement-id",
+            requirement_id,
+            "--authorization-note",
+            "用户确认可以归档自动编号样例版本。",
+            "--archived-at",
+            "2026-07-02",
+            "--workspace-root",
+            root,
+        ]
+    )
+    archive_output = invoke_ok(
+        [
+            "archive",
+            "version",
+            "0.1.0-auto-dogfood",
+            "--requirement-id",
+            requirement_id,
+            "--authorization-note",
+            "用户确认可以归档自动编号样例版本。",
+            "--archived-at",
+            "2026-07-02",
+            "--workspace-root",
+            root,
+        ]
+    )
+
+    assert "archive preflight clean" in preflight_output
+    assert "archived docs/archive/0.1.0-auto-dogfood/archive.yaml" in archive_output
+    assert not (tmp_path / "docs" / "active" / requirement_id).exists()
+    assert not (tmp_path / "docs" / "active" / task_id).exists()
+    assert (tmp_path / "docs" / "archive" / "0.1.0-auto-dogfood" / requirement_id).exists()
+    assert (tmp_path / "docs" / "archive" / "0.1.0-auto-dogfood" / task_id).exists()
