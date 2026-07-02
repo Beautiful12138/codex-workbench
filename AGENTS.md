@@ -123,26 +123,11 @@
 - 没有 evidence，不声称已验证或已完成。
 - action note、doctor clean、测试计划、口头判断都不能替代 task evidence。
 
-## 任务生命周期
+## 生命周期入口
 
-产品工作通常按以下闭环推进：
+产品工作从 material / discovery / intake 进入 readable requirement，再创建 task、准备 implementation-ready、实现、验证、handoff、done、requirement close 和 archive。具体命令和门禁不要在本入口卡展开；执行时使用 `workbench-task`、`workbench-evidence`、`workbench-archive` 和对应 policy。
 
-1. `material add`：登记来源和脱敏摘要。
-2. `discovery create`：记录只读探索得到的观察、推断、假设和问题。
-3. `intake create`：形成 AI-readable 需求草案。
-4. `intake confirm`：用户确认后 requirement 才 readable。
-5. `task create`：创建任务包。
-6. `task review-create` / `task implementation-create`：需要显性化时在任务包本地创建说明。
-7. `task prepare`：写入 working_scope、risk_triggers、implementation-ready 等开工准入。
-8. `task set-stage --stage in_progress`：通过门禁后进入实现。
-9. `evidence create`：记录真实验证事实。
-10. `validation apply`：基于 evidence 写回验证结论。
-11. `handoff set`：记录用户验收维度。
-12. `task set-stage --stage done`：validation、evidence、handoff 均满足时完成。
-13. `requirement close`：用户确认需求关闭。
-14. `archive preflight` / `archive version`：独立授权后版本归档。
-
-轻量路径只减少空仪式，不跳过事实、范围、验证和完成门禁。
+轻量路径只减少空仪式，不跳过事实、范围、风险、验证和完成门禁。
 
 ## Policy 地图
 
@@ -160,13 +145,13 @@
 
 本仓库的 Workbench skills 位于 `.agents/skills/`，以本仓库版本为准。
 
-- `workbench-resume`：恢复现场、选择工作对象、决定读取深度。
-- `workbench-task`：材料、需求、任务、准备和阶段推进。
-- `workbench-evidence`：证据、验证、交接和 done 判断。
-- `workbench-archive`：需求关闭、归档授权、预检和冷历史读取。
+- `workbench-resume`：恢复现场和选择工作对象。
+- `workbench-task`：材料、需求、任务、风险画像、准备和阶段推进。
+- `workbench-evidence`：证据、validation、handoff 和 done。
+- `workbench-archive`：requirement close、archive 授权和冷历史。
 
 skills 是操作规程；状态修改仍通过 CLI 和包 YAML 完成。
 
 ## 自动提醒与健康检查
 
-`.codex/hooks.json` 只提供轻量提醒，不写状态、不运行 doctor、不推进阶段、不归档。`doctor check` 是只读健康检查，只能报告状态问题，不能替代人工判断、evidence、用户验收或风险接受。
+`.codex/hooks.json` 只提供轻量提醒，不写状态、不运行 doctor、不推进阶段、不归档。`doctor check` 是只读健康检查，只报告机器真源和 lifecycle 的硬问题；它不是流程教练，不能替代人工判断、evidence、用户验收或风险接受。

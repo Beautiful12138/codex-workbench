@@ -161,6 +161,7 @@ def test_task_state_accepts_lifecycle_dimensions() -> None:
             working_scope=["task package"],
             likely_touchpoints=["src/codex_workbench"],
             risk_triggers=["触发真实数据写入时暂停确认。"],
+            risk_assessment_notes=["用户确认只是本地风险。"],
         )
     )
 
@@ -172,6 +173,7 @@ def test_task_state_accepts_lifecycle_dimensions() -> None:
     assert task.working_scope == ["task package"]
     assert task.likely_touchpoints == ["src/codex_workbench"]
     assert task.risk_triggers == ["触发真实数据写入时暂停确认。"]
+    assert task.risk_assessment_notes == ["用户确认只是本地风险。"]
 
 
 def test_task_state_accepts_impact_profile() -> None:

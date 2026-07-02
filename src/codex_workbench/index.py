@@ -8,7 +8,8 @@ import yaml
 from pydantic import ValidationError
 
 from .io import read_text_utf8, write_text_utf8_atomic
-from .models import ArchiveManifestState
+from .models import ArchiveManifestState, TaskState
+from .risk import impact_summary, risk_gap_summary, risk_level_summary
 from .workspace import resolve_workspace_path
 
 
@@ -402,8 +403,8 @@ def _render_current(snapshot: _IndexSnapshot) -> str:
         "",
         "## 最近工作",
         "",
-        "| 最近更新 | 需求 | 任务 | 阶段 | 包内容 | 验证 | 下一步 |",
-        "|---|---|---|---|---|---|---|",
+        "| 最近更新 | 需求 | 任务 | 阶段 | 风险 | 影响面 | 缺口 | 包内容 | 验证 | 下一步 |",
+        "|---|---|---|---|---|---|---|---|---|---|",
     ]
     active_tasks = [
         task
@@ -420,7 +421,7 @@ def _render_current(snapshot: _IndexSnapshot) -> str:
         reverse=True,
     )
     if not active_tasks:
-        lines.append("| - | - | - | - | - | - | no active tasks |")
+        lines.append("| - | - | - | - | - | - | - | - | - | no active tasks |")
     for task in active_tasks[:CURRENT_TASK_LIMIT]:
         data = task.data or {}
         requirement_id = str(data.get("requirement_id", "")).strip() or "-"
@@ -440,6 +441,9 @@ def _render_current(snapshot: _IndexSnapshot) -> str:
                     _table_cell(requirement_id),
                     _table_cell(task_label),
                     _table_cell(stage),
+                    _table_cell(_task_risk_summary(task)),
+                    _table_cell(_task_impact_summary(task)),
+                    _table_cell(_task_risk_gaps(task)),
                     _table_cell(_task_packet_status(task)),
                     _table_cell(validation_status),
                     _table_cell(next_step),
@@ -586,6 +590,8 @@ def _task_recovery_line(task: _YamlRecord) -> str:
     suffix_parts = []
     if risk_level or process_level:
         suffix_parts.append(f"risk={risk_level or 'unknown'}/process={process_level or 'unknown'}")
+    suffix_parts.append(f"impact={_task_impact_summary(task)}")
+    suffix_parts.append(f"gaps={_task_risk_gaps(task)}")
     if services:
         suffix_parts.append(f"service_refs={services}")
     if next_step:
@@ -644,8 +650,8 @@ def _task_lines(records: list[_YamlRecord]) -> list[str]:
     lines: list[str] = []
     lines.extend(
         [
-            "| 需求 | 任务 | 标题 | 阶段 | 包内容 | 验证 | 最近更新 | 下一步 |",
-            "|---|---|---|---|---|---|---|---|",
+            "| 需求 | 任务 | 标题 | 阶段 | 风险 | 影响面 | 缺口 | 包内容 | 验证 | 最近更新 | 下一步 |",
+            "|---|---|---|---|---|---|---|---|---|---|---|",
         ]
     )
     for record in sorted(records, key=lambda item: item.id):
@@ -666,6 +672,9 @@ def _task_lines(records: list[_YamlRecord]) -> list[str]:
                     _table_cell(record.id),
                     _table_cell(record.title),
                     _table_cell(stage),
+                    _table_cell(_task_risk_summary(record)),
+                    _table_cell(_task_impact_summary(record)),
+                    _table_cell(_task_risk_gaps(record)),
                     _table_cell(_task_packet_status(record)),
                     _table_cell(validation_status),
                     _table_cell(updated_at),
@@ -769,6 +778,39 @@ def _task_packet_status(task: _YamlRecord) -> str:
     if _has_nonempty_file(task.path.parent / "handoff.md"):
         status_parts.append("handoff")
     return ", ".join(status_parts) if status_parts else "-"
+
+
+def _task_risk_summary(task: _YamlRecord) -> str:
+    model = _task_model_or_none(task)
+    if model is not None:
+        return risk_level_summary(model)
+    data = task.data or {}
+    risk_level = str(data.get("risk_level", "low")).strip() or "low"
+    process_level = str(data.get("process_level", "micro")).strip() or "micro"
+    return f"{risk_level}/{process_level}"
+
+
+def _task_impact_summary(task: _YamlRecord) -> str:
+    model = _task_model_or_none(task)
+    if model is None:
+        return "invalid"
+    return impact_summary(model)
+
+
+def _task_risk_gaps(task: _YamlRecord) -> str:
+    model = _task_model_or_none(task)
+    if model is None:
+        return "invalid_task_model"
+    return risk_gap_summary(model)
+
+
+def _task_model_or_none(task: _YamlRecord) -> TaskState | None:
+    if not task.data:
+        return None
+    try:
+        return TaskState.model_validate(task.data)
+    except ValidationError:
+        return None
 
 
 def _has_nonempty_file(path: Path) -> bool:

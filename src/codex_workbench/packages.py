@@ -284,6 +284,10 @@ def prepare_task(
     task_id: str,
     *,
     working_scope: list[str],
+    process_level: str | None = None,
+    risk_level: str | None = None,
+    impact_profile: dict | None = None,
+    impact_reason: str | None = None,
     implementation_ref: str | None = None,
     review_ref: str | None = None,
     risk_acceptance_note: str | None = None,
@@ -315,6 +319,16 @@ def prepare_task(
     if triggers:
         data["risk_triggers"] = triggers
 
+    _apply_task_impact_update(
+        data,
+        process_level=process_level,
+        risk_level=risk_level,
+        impact_profile=impact_profile,
+        risk_triggers=None,
+        reason=impact_reason,
+        require_reason=False,
+    )
+
     if review_ref and review_ref.strip():
         data["review"] = {"status": "done", "ref": review_ref.strip()}
 
@@ -334,6 +348,40 @@ def prepare_task(
             }
         )
 
+    data["updated_at"] = resolve_timestamp(updated_at)
+    task = TaskState.model_validate(data)
+    if task.id != task_id:
+        raise WorkbenchError(
+            ErrorCode.VALIDATION_ERROR,
+            f"task_id_mismatch: expected={task_id} actual={task.id}",
+            exit_code=2,
+        )
+    write_yaml_atomic(task_yaml, data, dry_run=dry_run)
+    return PackageWriteResult(paths=(task_yaml,), dry_run=dry_run)
+
+
+def update_task_impact(
+    workspace_root: str | Path,
+    task_id: str,
+    *,
+    process_level: str | None = None,
+    risk_level: str | None = None,
+    impact_profile: dict | None = None,
+    risk_triggers: list[str] | None = None,
+    reason: str,
+    updated_at: str | None = None,
+    dry_run: bool = False,
+) -> PackageWriteResult:
+    root, task_yaml, data, task = _load_task_package(workspace_root, task_id)
+    _apply_task_impact_update(
+        data,
+        process_level=process_level,
+        risk_level=risk_level,
+        impact_profile=impact_profile,
+        risk_triggers=risk_triggers,
+        reason=reason,
+        require_reason=True,
+    )
     data["updated_at"] = resolve_timestamp(updated_at)
     task = TaskState.model_validate(data)
     if task.id != task_id:
@@ -582,6 +630,54 @@ def _clean_required_list(values: list[str], reason_code: str) -> list[str]:
     if not cleaned:
         raise WorkbenchError(ErrorCode.VALIDATION_ERROR, reason_code, exit_code=2)
     return cleaned
+
+
+def _apply_task_impact_update(
+    data: dict,
+    *,
+    process_level: str | None,
+    risk_level: str | None,
+    impact_profile: dict | None,
+    risk_triggers: list[str] | None,
+    reason: str | None,
+    require_reason: bool,
+) -> None:
+    cleaned_reason = (reason or "").strip()
+    has_update = any(
+        (
+            process_level is not None,
+            risk_level is not None,
+            impact_profile is not None,
+            risk_triggers is not None,
+        )
+    )
+    if not has_update:
+        return
+    if require_reason and not cleaned_reason:
+        raise WorkbenchError(
+            ErrorCode.VALIDATION_ERROR,
+            "missing_risk_assessment_reason",
+            exit_code=2,
+        )
+    if process_level is not None:
+        data["process_level"] = process_level.strip()
+    if risk_level is not None:
+        data["risk_level"] = risk_level.strip()
+    if impact_profile is not None:
+        data["impact_profile"] = impact_profile
+    if risk_triggers is not None:
+        triggers = _clean_list(risk_triggers)
+        if triggers:
+            data["risk_triggers"] = triggers
+    if cleaned_reason:
+        notes = data.setdefault("risk_assessment_notes", [])
+        if not isinstance(notes, list):
+            raise WorkbenchError(
+                ErrorCode.VALIDATION_ERROR,
+                "invalid_risk_assessment_notes",
+                exit_code=2,
+            )
+        notes.append(cleaned_reason)
 
 
 def _assert_known_service_refs(root: Path, task: TaskState) -> None:

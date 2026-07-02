@@ -446,6 +446,89 @@ def test_task_create_writes_impact_profile(tmp_path: Path) -> None:
     assert task_yaml["impact_profile"]["verification_confidence"] == "local_testable"
 
 
+def test_task_impact_set_updates_profile_and_records_reason(tmp_path: Path) -> None:
+    create_workspace(tmp_path)
+    write_requirement(tmp_path)
+    created = create_task_via_cli(tmp_path)
+    assert created.exit_code == 0, combined_output(created)
+
+    result = runner.invoke(
+        app,
+        [
+            "task",
+            "impact-set",
+            "REQ-20260702-001-TASK-20260702-001",
+            "--risk-level",
+            "standard",
+            "--process-level",
+            "lightweight",
+            "--impact-action",
+            "code_change",
+            "--impact-component",
+            "sql",
+            "--impact-environment",
+            "local",
+            "--impact-data-effect",
+            "none",
+            "--impact-external-effect",
+            "none",
+            "--impact-blast-radius",
+            "single_service",
+            "--impact-reversibility",
+            "git_revert",
+            "--impact-contract-change",
+            "false",
+            "--impact-security-or-permission",
+            "false",
+            "--impact-verification-confidence",
+            "local_testable",
+            "--risk-trigger",
+            "发现真实数据写入时暂停确认。",
+            "--reason",
+            "读代码后确认只是本地 SQL 查询调整。",
+            "--workspace-root",
+            str(tmp_path),
+        ],
+    )
+
+    task_yaml = tmp_path / "docs" / "active" / "REQ-20260702-001-TASK-20260702-001" / "task.yaml"
+    task = yaml.safe_load(task_yaml.read_text(encoding="utf-8"))
+    current_text = (tmp_path / "CURRENT.md").read_text(encoding="utf-8")
+
+    assert result.exit_code == 0, combined_output(result)
+    assert task["risk_level"] == "standard"
+    assert task["process_level"] == "lightweight"
+    assert task["impact_profile"]["action"] == "code_change"
+    assert task["impact_profile"]["component_signals"] == ["sql"]
+    assert task["risk_triggers"] == ["发现真实数据写入时暂停确认。"]
+    assert task["risk_assessment_notes"] == ["读代码后确认只是本地 SQL 查询调整。"]
+    assert "standard/lightweight" in current_text
+    assert "code_change local data=none" in current_text
+
+
+def test_task_impact_set_requires_reason(tmp_path: Path) -> None:
+    create_workspace(tmp_path)
+    write_requirement(tmp_path)
+    created = create_task_via_cli(tmp_path)
+    assert created.exit_code == 0, combined_output(created)
+
+    result = runner.invoke(
+        app,
+        [
+            "task",
+            "impact-set",
+            "REQ-20260702-001-TASK-20260702-001",
+            "--risk-level",
+            "standard",
+            "--workspace-root",
+            str(tmp_path),
+        ],
+    )
+
+    assert result.exit_code != 0
+    assert "missing_risk_assessment_reason" in combined_output(result)
+
+
 def test_task_check_blocks_low_micro_real_data_write_profile(tmp_path: Path) -> None:
     create_workspace(tmp_path)
     write_requirement(tmp_path)
@@ -934,6 +1017,64 @@ def test_task_prepare_command_allows_in_progress_without_handwritten_yaml(tmp_pa
     assert task["risk_triggers"] == ["触发真实数据写入时暂停确认。"]
 
 
+def test_task_prepare_can_update_impact_profile(tmp_path: Path) -> None:
+    create_workspace(tmp_path)
+    write_requirement(tmp_path)
+    created = create_task_via_cli(tmp_path)
+    assert created.exit_code == 0, combined_output(created)
+
+    prepare = runner.invoke(
+        app,
+        [
+            "task",
+            "prepare",
+            "REQ-20260702-001-TASK-20260702-001",
+            "--working-scope",
+            "src/codex_workbench/cli.py",
+            "--risk-level",
+            "standard",
+            "--process-level",
+            "standard",
+            "--impact-action",
+            "code_change",
+            "--impact-component",
+            "config",
+            "--impact-environment",
+            "local",
+            "--impact-data-effect",
+            "none",
+            "--impact-external-effect",
+            "none",
+            "--impact-blast-radius",
+            "single_service",
+            "--impact-reversibility",
+            "git_revert",
+            "--impact-contract-change",
+            "false",
+            "--impact-security-or-permission",
+            "false",
+            "--impact-verification-confidence",
+            "local_testable",
+            "--impact-reason",
+            "准备实现时确认只影响本地配置。",
+            "--workspace-root",
+            str(tmp_path),
+        ],
+    )
+
+    task_yaml = yaml.safe_load(
+        (tmp_path / "docs" / "active" / "REQ-20260702-001-TASK-20260702-001" / "task.yaml").read_text(
+            encoding="utf-8"
+        )
+    )
+
+    assert prepare.exit_code == 0, combined_output(prepare)
+    assert task_yaml["risk_level"] == "standard"
+    assert task_yaml["process_level"] == "standard"
+    assert task_yaml["impact_profile"]["component_signals"] == ["config"]
+    assert task_yaml["risk_assessment_notes"] == ["准备实现时确认只影响本地配置。"]
+
+
 def test_task_review_and_implementation_create_use_package_local_docs(
     tmp_path: Path,
 ) -> None:
@@ -1088,6 +1229,30 @@ def test_task_prepare_high_risk_requires_review_ref_and_risk_acceptance(
             "用户确认高风险边界。",
             "--risk-trigger",
             "触发真实数据写入时暂停确认。",
+            "--risk-level",
+            "high",
+            "--process-level",
+            "high",
+            "--impact-action",
+            "data_write",
+            "--impact-environment",
+            "shared",
+            "--impact-data-effect",
+            "real_data_write",
+            "--impact-external-effect",
+            "write",
+            "--impact-blast-radius",
+            "shared_users",
+            "--impact-reversibility",
+            "backup_restore",
+            "--impact-contract-change",
+            "false",
+            "--impact-security-or-permission",
+            "false",
+            "--impact-verification-confidence",
+            "integration_required",
+            "--impact-reason",
+            "高风险任务开工前补齐影响面画像。",
             "--workspace-root",
             str(tmp_path),
         ],

@@ -29,6 +29,7 @@ from .packages import (
     obsolete_task,
     prepare_task,
     set_task_stage,
+    update_task_impact,
     update_task_packet,
 )
 from .records import (
@@ -555,6 +556,19 @@ def task_prepare(
         "--working-scope",
         help="implementation-ready 工作范围，可重复。",
     ),
+    process_level: str | None = typer.Option(None, "--process-level", help="更新流程显性化强度。"),
+    risk_level: str | None = typer.Option(None, "--risk-level", help="更新风险等级。"),
+    impact_action: str | None = typer.Option(None, "--impact-action", help="影响面画像：主要动作。"),
+    impact_component: list[str] = typer.Option([], "--impact-component", help="影响面画像：组件线索，可重复。"),
+    impact_environment: str | None = typer.Option(None, "--impact-environment", help="影响面画像：目标环境。"),
+    impact_data_effect: str | None = typer.Option(None, "--impact-data-effect", help="影响面画像：数据影响。"),
+    impact_external_effect: str | None = typer.Option(None, "--impact-external-effect", help="影响面画像：外部影响。"),
+    impact_blast_radius: str | None = typer.Option(None, "--impact-blast-radius", help="影响面画像：影响半径。"),
+    impact_reversibility: str | None = typer.Option(None, "--impact-reversibility", help="影响面画像：可回滚性。"),
+    impact_contract_change: str | None = typer.Option(None, "--impact-contract-change", help="影响面画像：true/false/unknown。"),
+    impact_security_or_permission: str | None = typer.Option(None, "--impact-security-or-permission", help="影响面画像：true/false/unknown。"),
+    impact_verification_confidence: str | None = typer.Option(None, "--impact-verification-confidence", help="影响面画像：验证可信度。"),
+    impact_reason: str | None = typer.Option(None, "--impact-reason", help="风险画像更新原因。"),
     implementation_ref: str | None = typer.Option(
         None,
         "--implementation-ref",
@@ -590,11 +604,81 @@ def task_prepare(
             root,
             task_id,
             working_scope=working_scope,
+            process_level=process_level,
+            risk_level=risk_level,
+            impact_profile=_build_impact_profile(
+                action=impact_action,
+                components=impact_component,
+                environment=impact_environment,
+                data_effect=impact_data_effect,
+                external_effect=impact_external_effect,
+                blast_radius=impact_blast_radius,
+                reversibility=impact_reversibility,
+                contract_change=impact_contract_change,
+                security_or_permission=impact_security_or_permission,
+                verification_confidence=impact_verification_confidence,
+            ),
+            impact_reason=impact_reason,
             implementation_ref=implementation_ref,
             review_ref=review_ref,
             risk_acceptance_note=risk_acceptance_note,
             likely_touchpoints=likely_touchpoint,
             risk_triggers=risk_trigger,
+            dry_run=dry_run,
+        )
+        _echo_package_result(root, result.paths, dry_run=dry_run, verb="updated")
+        _refresh_generated_views(root, dry_run=dry_run)
+    except (ValidationError, ValueError) as exc:
+        typer.echo(f"validation_error: {exc}", err=True)
+        raise typer.Exit(2) from exc
+    except WorkbenchError as exc:
+        _exit_with_workbench_error(exc)
+
+
+@task_app.command("impact-set")
+def task_impact_set(
+    task_id: str = typer.Argument(..., help="任务 ID，例如 REQ-20260702-001-TASK-20260702-001。"),
+    process_level: str | None = typer.Option(None, "--process-level", help="流程显性化强度。"),
+    risk_level: str | None = typer.Option(None, "--risk-level", help="风险等级。"),
+    impact_action: str | None = typer.Option(None, "--impact-action", help="影响面画像：主要动作。"),
+    impact_component: list[str] = typer.Option([], "--impact-component", help="影响面画像：组件线索，可重复。"),
+    impact_environment: str | None = typer.Option(None, "--impact-environment", help="影响面画像：目标环境。"),
+    impact_data_effect: str | None = typer.Option(None, "--impact-data-effect", help="影响面画像：数据影响。"),
+    impact_external_effect: str | None = typer.Option(None, "--impact-external-effect", help="影响面画像：外部影响。"),
+    impact_blast_radius: str | None = typer.Option(None, "--impact-blast-radius", help="影响面画像：影响半径。"),
+    impact_reversibility: str | None = typer.Option(None, "--impact-reversibility", help="影响面画像：可回滚性。"),
+    impact_contract_change: str | None = typer.Option(None, "--impact-contract-change", help="影响面画像：true/false/unknown。"),
+    impact_security_or_permission: str | None = typer.Option(None, "--impact-security-or-permission", help="影响面画像：true/false/unknown。"),
+    impact_verification_confidence: str | None = typer.Option(None, "--impact-verification-confidence", help="影响面画像：验证可信度。"),
+    risk_trigger: list[str] = typer.Option([], "--risk-trigger", help="暂停确认条件，可重复；不是白名单。"),
+    reason: str | None = typer.Option(None, "--reason", help="风险画像更新原因。"),
+    workspace_root: Path = typer.Option(Path("."), "--workspace-root", help="Workbench 根目录。"),
+    updated_at: str | None = typer.Option(None, "--updated-at", help="更新时间；默认当前时间。"),
+    dry_run: bool = typer.Option(False, "--dry-run", help="只显示将写入的文件。"),
+) -> None:
+    """更新 task 的风险画像、风险等级、流程档位和暂停条件。"""
+    try:
+        root = find_workspace_root(workspace_root)
+        result = update_task_impact(
+            root,
+            task_id,
+            process_level=process_level,
+            risk_level=risk_level,
+            impact_profile=_build_impact_profile(
+                action=impact_action,
+                components=impact_component,
+                environment=impact_environment,
+                data_effect=impact_data_effect,
+                external_effect=impact_external_effect,
+                blast_radius=impact_blast_radius,
+                reversibility=impact_reversibility,
+                contract_change=impact_contract_change,
+                security_or_permission=impact_security_or_permission,
+                verification_confidence=impact_verification_confidence,
+            ),
+            risk_triggers=risk_trigger,
+            reason=reason or "",
+            updated_at=updated_at,
             dry_run=dry_run,
         )
         _echo_package_result(root, result.paths, dry_run=dry_run, verb="updated")

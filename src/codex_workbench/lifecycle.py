@@ -5,17 +5,12 @@ from enum import Enum
 
 from .models import (
     ActionNoteState,
-    BlastRadius,
     ConfirmationType,
-    DataEffect,
     EvidenceState,
-    ExternalEffect,
     HandoffStatus,
-    ImpactEnvironment,
     ProcessLevel,
     ReadinessConclusion,
     RequirementReadinessStatus,
-    Reversibility,
     RequirementState,
     ReviewStatus,
     RiskLevel,
@@ -23,8 +18,8 @@ from .models import (
     TaskStage,
     TaskState,
     ValidationStatus,
-    VerificationConfidence,
 )
+from .risk import impact_gate_reason_codes
 
 
 @dataclass(frozen=True)
@@ -78,7 +73,7 @@ def evaluate_task_transition(
     if target is TaskStage.IN_PROGRESS:
         if not task.implementation.ready or task.implementation.conclusion is not ReadinessConclusion.SCOPED:
             reason_codes.append("missing_implementation_ready")
-        reason_codes.extend(_impact_profile_reason_codes(task))
+        reason_codes.extend(impact_gate_reason_codes(task))
         if _needs_high_pressure(task):
             if task.review.status is not ReviewStatus.DONE:
                 reason_codes.append("missing_high_risk_review")
@@ -122,65 +117,6 @@ def _needs_high_pressure(task: TaskState) -> bool:
     return (
         task.risk_level in {RiskLevel.HIGH, RiskLevel.CRITICAL}
         or task.process_level in {ProcessLevel.HIGH, ProcessLevel.CRITICAL}
-    )
-
-
-def _impact_profile_reason_codes(task: TaskState) -> list[str]:
-    profile = task.impact_profile
-    if profile is None:
-        return []
-
-    reason_codes: list[str] = []
-    if _impact_has_real_consequence(task):
-        if task.risk_level is RiskLevel.LOW:
-            reason_codes.append("impact_profile_requires_risk_escalation")
-        if task.process_level is ProcessLevel.MICRO:
-            reason_codes.append("impact_profile_requires_process_escalation")
-
-    if task.process_level is ProcessLevel.MICRO and _impact_has_unknowns(task):
-        reason_codes.append("impact_profile_unknown_for_micro")
-
-    return reason_codes
-
-
-def _impact_has_real_consequence(task: TaskState) -> bool:
-    profile = task.impact_profile
-    if profile is None:
-        return False
-    return (
-        profile.environment in {ImpactEnvironment.SHARED, ImpactEnvironment.PRODUCTION}
-        or profile.data_effect
-        in {
-            DataEffect.REAL_DATA_WRITE,
-            DataEffect.SCHEMA_OR_MIGRATION,
-            DataEffect.DESTRUCTIVE,
-        }
-        or profile.external_effect
-        in {
-            ExternalEffect.WRITE,
-            ExternalEffect.DEPLOY,
-            ExternalEffect.NOTIFY,
-            ExternalEffect.COST,
-            ExternalEffect.SECURITY,
-        }
-        or profile.blast_radius in {BlastRadius.SHARED_USERS, BlastRadius.EXTERNAL_USERS}
-        or profile.reversibility in {Reversibility.HARD, Reversibility.IRREVERSIBLE}
-        or profile.contract_change is True
-        or profile.security_or_permission is True
-    )
-
-
-def _impact_has_unknowns(task: TaskState) -> bool:
-    profile = task.impact_profile
-    if profile is None:
-        return False
-    return (
-        profile.environment is ImpactEnvironment.UNKNOWN
-        or profile.blast_radius is BlastRadius.UNKNOWN
-        or profile.reversibility is Reversibility.UNKNOWN
-        or profile.contract_change == "unknown"
-        or profile.security_or_permission == "unknown"
-        or profile.verification_confidence is VerificationConfidence.UNCLEAR
     )
 
 

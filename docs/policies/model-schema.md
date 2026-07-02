@@ -86,6 +86,8 @@ impact_profile:
 
 `component_signals` 是复杂度线索，不是风险判定白名单或黑名单。`impact_profile` 不替代 `risk_level`、`process_level`、`risk_triggers`、review、implementation、evidence 或用户确认。
 
+`risk_assessment_notes` 只记录风险画像或风险等级调整的原因；它不是 progress，也不替代 change、decision 或 evidence。
+
 完整语义见 `docs/policies/risk-and-process.md`。
 
 ## lifecycle 维度
@@ -95,6 +97,7 @@ impact_profile:
 - `working_scope`
 - `likely_touchpoints`
 - `risk_triggers`
+- `risk_assessment_notes`
 - `impact_profile`
 - `review.status` / `review.ref`
 - `implementation.ready` / `implementation.conclusion` / `implementation.ref`

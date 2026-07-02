@@ -66,6 +66,18 @@ def create_full_index_fixture(root: Path) -> None:
             "stage": "in_progress",
             "process_level": "standard",
             "risk_level": "standard",
+            "impact_profile": {
+                "action": "code_change",
+                "component_signals": ["python"],
+                "environment": "local",
+                "data_effect": "none",
+                "external_effect": "none",
+                "blast_radius": "single_service",
+                "reversibility": "git_revert",
+                "contract_change": False,
+                "security_or_permission": False,
+                "verification_confidence": "local_testable",
+            },
             "service_refs": ["codex-workbench"],
             "validation": {"status": "passed", "evidence_ref": "EV-REQ-20260702-001-TASK-20260702-001"},
             "handoff": {"status": "waiting_user_validation"},
@@ -188,14 +200,16 @@ def test_generate_index_views_rebuilds_generated_outputs_without_source_writes(t
     current_text = current_path.read_text(encoding="utf-8")
     assert result.paths == (current_path, index_path, recovery_path)
     assert "# CURRENT" in current_text
-    assert "| 最近更新 | 需求 | 任务 | 阶段 | 包内容 | 验证 | 下一步 |" in current_text
+    assert "| 最近更新 | 需求 | 任务 | 阶段 | 风险 | 影响面 | 缺口 | 包内容 | 验证 | 下一步 |" in current_text
     assert "REQ-20260702-001-TASK-20260702-001" in current_text
+    assert "standard/standard" in current_text
+    assert "code_change local data=none" in current_text
     assert "review, implementation, evidence" in current_text
     assert "generated view; YAML remains the source of truth" in index_text
     assert "| 需求 | 标题 | readiness | 任务数 | 最近更新 |" in index_text
     assert "| REQ-20260702-001 | 构建 Workbench | readable | 1 | 2026-07-01 |" in index_text
-    assert "| 需求 | 任务 | 标题 | 阶段 | 包内容 | 验证 | 最近更新 | 下一步 |" in index_text
-    assert "| REQ-20260702-001 | REQ-20260702-001-TASK-20260702-001 | 生成索引 | in_progress | review, implementation, evidence | passed | 2026-07-01T10:00:00+08:00 | - |" in index_text
+    assert "| 需求 | 任务 | 标题 | 阶段 | 风险 | 影响面 | 缺口 | 包内容 | 验证 | 最近更新 | 下一步 |" in index_text
+    assert "| REQ-20260702-001 | REQ-20260702-001-TASK-20260702-001 | 生成索引 | in_progress | standard/standard | code_change local data=none external=none radius=single_service rollback=git_revert | none | review, implementation, evidence | passed | 2026-07-01T10:00:00+08:00 | - |" in index_text
     assert "`codex-workbench`" in index_text
     assert "ACT-001" in index_text
     assert "CHG-001" in index_text
@@ -203,6 +217,8 @@ def test_generate_index_views_rebuilds_generated_outputs_without_source_writes(t
     assert "SUS-001" in index_text
     assert "## 续接队列" in recovery_text
     assert "REQ-20260702-001-TASK-20260702-001" in recovery_text
+    assert "impact=code_change local data=none" in recovery_text
+    assert "gaps=none" in recovery_text
     assert "full evidence body must stay out" not in recovery_text
     assert "D:/private/raw/philosophy.md" not in index_text
     assert source_yaml.read_text(encoding="utf-8") == before_source
@@ -219,6 +235,46 @@ def test_generate_index_views_dry_run_does_not_write_generated_files(tmp_path: P
     assert not (tmp_path / "docs" / "generated" / "recovery.md").exists()
     assert "REQ-20260702-001-TASK-20260702-001" in result.index_text
     assert "## 续接队列" in result.recovery_text
+
+
+def test_generated_views_show_risk_gaps_without_expanding_profile(tmp_path: Path) -> None:
+    create_workspace(tmp_path)
+    write_yaml(
+        tmp_path / "docs" / "active" / "REQ-20260702-001" / "requirement.yaml",
+        {
+            "schema_version": "0.1",
+            "id": "REQ-20260702-001",
+            "title": "风险缺口需求",
+            "goal": "展示风险缺口。",
+            "created_at": "2026-07-01T09:00:00+08:00",
+            "updated_at": "2026-07-01",
+            "task_refs": ["REQ-20260702-001-TASK-20260702-001"],
+            "readiness": {"status": "readable", "confirmed_by_user": True},
+        },
+    )
+    write_yaml(
+        tmp_path / "docs" / "active" / "REQ-20260702-001-TASK-20260702-001" / "task.yaml",
+        {
+            "schema_version": "0.1",
+            "id": "REQ-20260702-001-TASK-20260702-001",
+            "requirement_id": "REQ-20260702-001",
+            "title": "缺少风险画像",
+            "created_at": "2026-07-01T09:30:00+08:00",
+            "updated_at": "2026-07-01T10:00:00+08:00",
+            "stage": "ready",
+            "process_level": "standard",
+            "risk_level": "standard",
+            "validation": {"status": "not_started"},
+        },
+    )
+
+    result = generate_index_views(tmp_path, dry_run=True)
+
+    assert "missing_impact_profile" in result.current_text
+    assert "missing_impact_profile" in result.index_text
+    assert "missing_impact_profile" in result.recovery_text
+    assert "impact_profile:" not in result.index_text
+    assert "component_signals" not in result.recovery_text
 
 
 def test_deleted_generated_views_rebuild_byte_stable(tmp_path: Path) -> None:

@@ -352,6 +352,7 @@ class TaskState(WorkbenchModel):
     working_scope: list[str] = Field(default_factory=list)
     likely_touchpoints: list[str] = Field(default_factory=list)
     risk_triggers: list[str] = Field(default_factory=list)
+    risk_assessment_notes: list[str] = Field(default_factory=list)
 
     @field_validator("requirement_id")
     def require_dated_requirement_ref(cls, value: str) -> str:

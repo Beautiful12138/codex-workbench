@@ -33,9 +33,10 @@ description: Use when Codex 需要在 codex-workbench 中处理材料、discover
 6. 用户确认需求边界：用 `intake confirm`。
 7. 正式执行项：用 `task create`。
 8. 风险画像：按 `docs/policies/risk-and-process.md` 判断 `impact_profile`、`risk_level`、`process_level` 和 `risk_triggers`。
-9. 开工准入：用 `task prepare` 写入 working_scope、risk_triggers、implementation-ready。
-10. 阶段预演：用 `task check --to <stage>`。
-11. 阶段写入：用 `task set-stage --stage <stage>`。
+9. 风险变化：task 创建后发现影响面变化，用 `task impact-set`，并写清 `--reason`。
+10. 开工准入：用 `task prepare` 写入 working_scope、risk_triggers、implementation-ready；准备实现时也可补齐或修正 `impact_profile`。
+11. 阶段预演：用 `task check --to <stage>`。
+12. 阶段写入：用 `task set-stage --stage <stage>`。
 
 ## 风险画像
 
@@ -62,6 +63,8 @@ description: Use when Codex 需要在 codex-workbench 中处理材料、discover
 - `high` / `critical`：用于真实后果、高不确定性或较大影响面；必须有 review、implementation ref、risk_triggers、风险接受和验证计划。
 
 遇到 environment、data_effect、external_effect、blast_radius、reversibility、contract_change、security_or_permission 或 verification_confidence 为 unknown/unclear，且继续会写状态或改文件时，先暂停确认。
+
+高风险或 critical task 进入 `in_progress` 前必须有 `impact_profile`。如果当前 task 已创建但缺风险画像，先用 `task impact-set` 或在 `task prepare` 中补齐。
 
 ## task prepare
 
@@ -119,6 +122,7 @@ python -m codex_workbench discovery create DISC-001 --title "..." --material-ref
 python -m codex_workbench intake create --title "..." --goal "..." --acceptance "..." --material-ref MAT-001
 python -m codex_workbench intake confirm REQ-20260702-001 --updated-at "..."
 python -m codex_workbench task create --requirement-id REQ-20260702-001 --title "..." --user-goal "..." --done "..." --next "..."
+python -m codex_workbench task impact-set REQ-20260702-001-TASK-20260702-001 --risk-level standard --process-level lightweight --impact-action code_change --impact-environment local --impact-data-effect none --impact-external-effect none --impact-blast-radius single_service --impact-reversibility git_revert --impact-contract-change false --impact-security-or-permission false --impact-verification-confidence local_testable --reason "读代码后确认只是本地改动。"
 python -m codex_workbench task prepare REQ-20260702-001-TASK-20260702-001 --working-scope "..." --risk-trigger "..."
 python -m codex_workbench task check REQ-20260702-001-TASK-20260702-001 --to in_progress
 python -m codex_workbench task set-stage REQ-20260702-001-TASK-20260702-001 --stage in_progress
