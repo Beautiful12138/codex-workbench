@@ -21,6 +21,8 @@ Archive 是冷路径。默认恢复现场不展开历史；只有用户要求归
 
 requirement close 不等于 archive authorization。用户业务验收也不等于 archive authorization。
 
+归档不重新判定任务风险。归档前只核对任务是否已经按自身风险和流程门禁闭环：done task 必须有 validation、evidence、handoff；obsolete task 必须有原因。
+
 ## 归档前条件
 
 归档 requirement 前必须确认：

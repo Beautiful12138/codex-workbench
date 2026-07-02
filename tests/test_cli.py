@@ -384,6 +384,130 @@ def test_task_create_command_writes_package(tmp_path: Path) -> None:
     assert "运行测试。" not in task_md
 
 
+def test_task_create_writes_impact_profile(tmp_path: Path) -> None:
+    create_workspace(tmp_path)
+    write_requirement(tmp_path)
+
+    result = runner.invoke(
+        app,
+        [
+            "task",
+            "create",
+            "REQ-20260702-001-TASK-20260702-001",
+            "--requirement-id",
+            "REQ-20260702-001",
+            "--title",
+            "调整本地 SQL",
+            "--user-goal",
+            "调整本地测试 SQL。",
+            "--done",
+            "本地测试通过。",
+            "--next",
+            "准备实现。",
+            "--impact-action",
+            "code_change",
+            "--impact-component",
+            "sql",
+            "--impact-component",
+            "database",
+            "--impact-environment",
+            "local",
+            "--impact-data-effect",
+            "none",
+            "--impact-external-effect",
+            "none",
+            "--impact-blast-radius",
+            "single_service",
+            "--impact-reversibility",
+            "git_revert",
+            "--impact-contract-change",
+            "false",
+            "--impact-security-or-permission",
+            "false",
+            "--impact-verification-confidence",
+            "local_testable",
+            "--workspace-root",
+            str(tmp_path),
+            "--updated-at",
+            "2026-07-01",
+        ],
+    )
+
+    task_yaml = yaml.safe_load(
+        (tmp_path / "docs" / "active" / "REQ-20260702-001-TASK-20260702-001" / "task.yaml").read_text(
+            encoding="utf-8"
+        )
+    )
+
+    assert result.exit_code == 0, combined_output(result)
+    assert task_yaml["impact_profile"]["action"] == "code_change"
+    assert task_yaml["impact_profile"]["component_signals"] == ["sql", "database"]
+    assert task_yaml["impact_profile"]["contract_change"] is False
+    assert task_yaml["impact_profile"]["verification_confidence"] == "local_testable"
+
+
+def test_task_check_blocks_low_micro_real_data_write_profile(tmp_path: Path) -> None:
+    create_workspace(tmp_path)
+    write_requirement(tmp_path)
+    created = create_task_via_cli(
+        tmp_path,
+        [
+            "--impact-action",
+            "data_write",
+            "--impact-component",
+            "sql",
+            "--impact-environment",
+            "shared",
+            "--impact-data-effect",
+            "real_data_write",
+            "--impact-external-effect",
+            "write",
+            "--impact-blast-radius",
+            "shared_users",
+            "--impact-reversibility",
+            "hard",
+            "--impact-contract-change",
+            "false",
+            "--impact-security-or-permission",
+            "false",
+            "--impact-verification-confidence",
+            "integration_required",
+        ],
+    )
+    assert created.exit_code == 0, combined_output(created)
+    prepared = runner.invoke(
+        app,
+        [
+            "task",
+            "prepare",
+            "REQ-20260702-001-TASK-20260702-001",
+            "--working-scope",
+            "src/demo.py",
+            "--workspace-root",
+            str(tmp_path),
+        ],
+    )
+    assert prepared.exit_code == 0, combined_output(prepared)
+
+    check = runner.invoke(
+        app,
+        [
+            "task",
+            "check",
+            "REQ-20260702-001-TASK-20260702-001",
+            "--to",
+            "in_progress",
+            "--workspace-root",
+            str(tmp_path),
+        ],
+    )
+
+    assert check.exit_code != 0
+    output = combined_output(check)
+    assert "impact_profile_requires_risk_escalation" in output
+    assert "impact_profile_requires_process_escalation" in output
+
+
 def test_task_create_can_auto_id_and_default_time(tmp_path: Path, monkeypatch) -> None:
     create_workspace(tmp_path)
     write_requirement(tmp_path)

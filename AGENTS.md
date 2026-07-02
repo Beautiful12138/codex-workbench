@@ -48,6 +48,20 @@
 
 如果不确定性不影响只读调查，先调查并说明假设。若不确定性会影响代码、配置、数据、权限、安全、部署、外部环境或完成结论，先暂停确认。
 
+## 风险入口
+
+风险按真实后果判断，不按组件名判断。DB、SQL、Redis、MQ、Docker、配置、脚本和依赖升级只是风险线索，不能单独决定流程等级。
+
+判断风险时先问五件事：
+
+1. 这次是否会写真实项目资产、数据、环境或外部系统？
+2. 环境是 local、sandbox、personal、shared、production 还是 unknown？
+3. 是否影响真实数据、权限、安全、部署、费用、外部通知或他人？
+4. 是否改变接口、schema、跨服务契约、索引、消息格式或验收口径？
+5. 是否可验证、可回滚，授权是否清楚？
+
+出现真实数据、生产/共享环境、权限安全、部署发布、不可逆、费用、外部通知、影响他人、环境不清、授权不清或回滚不清时，暂停确认或加严流程。完整规则见 `docs/policies/risk-and-process.md`。
+
 ## 工作对象选择
 
 多需求、多任务并存时，按以下优先级选择工作对象：
@@ -133,6 +147,7 @@
 ## Policy 地图
 
 - `docs/policies/action-routing.md`：请求分流、状态写入边界和反例。
+- `docs/policies/risk-and-process.md`：风险判断、影响面画像和流程档位。
 - `docs/policies/recovery-and-concurrency.md`：工作对象选择、多包并发和恢复规则。
 - `docs/policies/state-and-gates.md`：阶段、门禁、验证、交接、完成和归档。
 - `docs/policies/materials.md`：材料、discovery、intake 和事实边界。

@@ -20,6 +20,7 @@ task 包应回答：
 - 涉及哪些服务。
 - 下一步是什么。
 - 进入实现前的范围、暂停条件、验证和回滚是什么。
+- 风险等级和流程档位为什么成立；复杂组件只作为线索，真实后果判断见 `docs/policies/risk-and-process.md`。
 
 `task.yaml.next_step` 是恢复提示，不是完成事实。
 
@@ -35,6 +36,8 @@ task 包应回答：
 - 触发真实后果风险时有 `risk_triggers` 和必要确认。
 
 低风险任务可以少文件，但不能跳过这些语义。高风险或 critical 任务进入 `in_progress` 前还需要 review done、implementation ref、working_scope、risk_triggers 和风险接受说明。
+
+如果 task 写有 `impact_profile`，阶段推进时应核对它是否与 `risk_level` / `process_level` 一致。真实数据写入、生产/共享环境、权限安全、部署、不可逆、影响他人、环境不清、授权不清或回滚不清，不能仍按 micro/low 直接推进。
 
 ## 阶段推进
 

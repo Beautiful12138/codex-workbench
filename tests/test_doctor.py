@@ -42,6 +42,7 @@ def write_task(
     obsolete_reason: str | None = None,
     validation: dict[str, object] | None = None,
     handoff: dict[str, object] | None = None,
+    impact_profile: dict[str, object] | None = None,
 ) -> Path:
     task_dir = root / "docs" / "active" / task_id
     task_dir.mkdir(parents=True)
@@ -65,6 +66,8 @@ def write_task(
     }
     if obsolete_reason is not None:
         payload["obsolete_reason"] = obsolete_reason
+    if impact_profile is not None:
+        payload["impact_profile"] = impact_profile
     (task_dir / "task.yaml").write_text(
         yaml.safe_dump(payload, allow_unicode=True, sort_keys=False),
         encoding="utf-8",
@@ -277,6 +280,37 @@ def test_doctor_check_blocks_high_risk_blank_scope_and_triggers(tmp_path: Path) 
     output = combined_output(result)
     assert "missing_high_risk_working_scope" in output
     assert "missing_high_risk_triggers" in output
+
+
+def test_doctor_check_blocks_in_progress_low_micro_with_real_data_impact(
+    tmp_path: Path,
+) -> None:
+    create_workspace(tmp_path)
+    write_task(
+        tmp_path,
+        process_level="micro",
+        risk_level="low",
+        impact_profile={
+            "action": "data_write",
+            "component_signals": ["sql"],
+            "environment": "shared",
+            "data_effect": "real_data_write",
+            "external_effect": "write",
+            "blast_radius": "shared_users",
+            "reversibility": "hard",
+            "contract_change": False,
+            "security_or_permission": False,
+            "verification_confidence": "integration_required",
+        },
+    )
+
+    result = runner.invoke(app, ["doctor", "check", "--workspace-root", str(tmp_path)])
+
+    assert result.exit_code == 1
+    output = combined_output(result)
+    assert "in_progress_gate_blocked" in output
+    assert "impact_profile_requires_risk_escalation" in output
+    assert "impact_profile_requires_process_escalation" in output
 
 
 def test_doctor_check_blocks_obsolete_task_without_reason(tmp_path: Path) -> None:

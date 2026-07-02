@@ -48,6 +48,74 @@ class RiskLevel(str, Enum):
     CRITICAL = "critical"
 
 
+class ImpactAction(str, Enum):
+    CODE_CHANGE = "code_change"
+    CONFIG_CHANGE = "config_change"
+    DATA_READ = "data_read"
+    DATA_WRITE = "data_write"
+    SCHEMA_CHANGE = "schema_change"
+    DEPLOYMENT = "deployment"
+    ENVIRONMENT_OPERATION = "environment_operation"
+    DOCUMENTATION = "documentation"
+    ANALYSIS = "analysis"
+
+
+class ImpactEnvironment(str, Enum):
+    LOCAL = "local"
+    SANDBOX = "sandbox"
+    PERSONAL = "personal"
+    SHARED = "shared"
+    PRODUCTION = "production"
+    UNKNOWN = "unknown"
+
+
+class DataEffect(str, Enum):
+    NONE = "none"
+    READ_ONLY = "read_only"
+    TEST_DATA_WRITE = "test_data_write"
+    REAL_DATA_WRITE = "real_data_write"
+    SCHEMA_OR_MIGRATION = "schema_or_migration"
+    DESTRUCTIVE = "destructive"
+
+
+class ExternalEffect(str, Enum):
+    NONE = "none"
+    READ_ONLY = "read_only"
+    WRITE = "write"
+    DEPLOY = "deploy"
+    NOTIFY = "notify"
+    COST = "cost"
+    SECURITY = "security"
+
+
+class BlastRadius(str, Enum):
+    SELF = "self"
+    SINGLE_SERVICE = "single_service"
+    MULTI_SERVICE = "multi_service"
+    SHARED_USERS = "shared_users"
+    EXTERNAL_USERS = "external_users"
+    UNKNOWN = "unknown"
+
+
+class Reversibility(str, Enum):
+    GIT_REVERT = "git_revert"
+    EASY_MANUAL = "easy_manual"
+    BACKUP_RESTORE = "backup_restore"
+    HARD = "hard"
+    IRREVERSIBLE = "irreversible"
+    UNKNOWN = "unknown"
+
+
+class VerificationConfidence(str, Enum):
+    LOCAL_TESTABLE = "local_testable"
+    INTEGRATION_REQUIRED = "integration_required"
+    MANUAL_ACCEPTANCE_REQUIRED = "manual_acceptance_required"
+    UNCLEAR = "unclear"
+
+
+ImpactTruth = bool | Literal["unknown"]
+
+
 class RequirementReadinessStatus(str, Enum):
     RAW_MATERIALS = "raw_materials"
     DISCOVERY = "discovery"
@@ -205,6 +273,32 @@ class ConfirmationState(WorkbenchModel):
     note: str | None = None
 
 
+class ImpactProfile(WorkbenchModel):
+    action: ImpactAction
+    component_signals: list[str] = Field(default_factory=list)
+    environment: ImpactEnvironment = ImpactEnvironment.UNKNOWN
+    data_effect: DataEffect = DataEffect.NONE
+    external_effect: ExternalEffect = ExternalEffect.NONE
+    blast_radius: BlastRadius = BlastRadius.UNKNOWN
+    reversibility: Reversibility = Reversibility.UNKNOWN
+    contract_change: ImpactTruth = "unknown"
+    security_or_permission: ImpactTruth = "unknown"
+    verification_confidence: VerificationConfidence = VerificationConfidence.UNCLEAR
+
+    @field_validator("contract_change", "security_or_permission", mode="before")
+    @classmethod
+    def parse_impact_truth(cls, value: object) -> object:
+        if isinstance(value, str):
+            normalized = value.strip().lower()
+            if normalized == "true":
+                return True
+            if normalized == "false":
+                return False
+            if normalized == "unknown":
+                return "unknown"
+        return value
+
+
 class WorkspaceState(WorkbenchModel):
     schema_version: SchemaVersion
     workspace_status: WorkspaceStatus = WorkspaceStatus.BASELINE
@@ -245,6 +339,7 @@ class TaskState(WorkbenchModel):
     next_step: NonEmptyString | None = None
     process_level: ProcessLevel = ProcessLevel.MICRO
     risk_level: RiskLevel = RiskLevel.LOW
+    impact_profile: ImpactProfile | None = None
     service_refs: list[str] = Field(default_factory=list)
     knowledge: Knowledge = Field(default_factory=Knowledge)
     review: ReviewState = Field(default_factory=ReviewState)

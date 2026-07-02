@@ -9,6 +9,8 @@ from pydantic import ValidationError
 from codex_workbench import models as model_module
 from codex_workbench.models import (
     ActionNoteState,
+    ImpactAction,
+    ImpactEnvironment,
     HandoffStatus,
     Knowledge,
     ProcessLevel,
@@ -170,6 +172,45 @@ def test_task_state_accepts_lifecycle_dimensions() -> None:
     assert task.working_scope == ["task package"]
     assert task.likely_touchpoints == ["src/codex_workbench"]
     assert task.risk_triggers == ["触发真实数据写入时暂停确认。"]
+
+
+def test_task_state_accepts_impact_profile() -> None:
+    task = TaskState.model_validate(
+        minimal_task(
+            impact_profile={
+                "action": "code_change",
+                "component_signals": ["sql", "database"],
+                "environment": "local",
+                "data_effect": "none",
+                "external_effect": "none",
+                "blast_radius": "single_service",
+                "reversibility": "git_revert",
+                "contract_change": False,
+                "security_or_permission": False,
+                "verification_confidence": "local_testable",
+            }
+        )
+    )
+
+    assert task.impact_profile is not None
+    assert task.impact_profile.action is ImpactAction.CODE_CHANGE
+    assert task.impact_profile.environment is ImpactEnvironment.LOCAL
+    assert task.impact_profile.component_signals == ["sql", "database"]
+    assert task.impact_profile.contract_change is False
+
+
+def test_task_state_rejects_invalid_impact_profile_enum() -> None:
+    with pytest.raises(ValidationError) as exc_info:
+        TaskState.model_validate(
+            minimal_task(
+                impact_profile={
+                    "action": "database",
+                    "environment": "local",
+                }
+            )
+        )
+
+    assert exc_info.value.errors()[0]["type"] == "enum"
 
 
 def test_task_state_rejects_extra_fields() -> None:

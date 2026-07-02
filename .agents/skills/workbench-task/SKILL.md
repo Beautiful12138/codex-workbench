@@ -21,6 +21,8 @@ description: Use when Codex 需要在 codex-workbench 中处理材料、discover
 
 轻量路径只减少空仪式，不跳过目标、范围、验证、交接和完成门禁。
 
+风险按真实后果判断，不按组件名判断。DB、SQL、Redis、MQ、配置、部署、脚本、依赖升级只是线索；真实数据、生产/共享环境、权限安全、部署、不可逆、影响他人、契约变化、验证或回滚不清时，暂停或加严。
+
 ## 路由流程
 
 1. 普通讨论：不写状态。
@@ -30,9 +32,36 @@ description: Use when Codex 需要在 codex-workbench 中处理材料、discover
 5. AI-readable 需求草案：用 `intake create`。
 6. 用户确认需求边界：用 `intake confirm`。
 7. 正式执行项：用 `task create`。
-8. 开工准入：用 `task prepare` 写入 working_scope、risk_triggers、implementation-ready。
-9. 阶段预演：用 `task check --to <stage>`。
-10. 阶段写入：用 `task set-stage --stage <stage>`。
+8. 风险画像：按 `docs/policies/risk-and-process.md` 判断 `impact_profile`、`risk_level`、`process_level` 和 `risk_triggers`。
+9. 开工准入：用 `task prepare` 写入 working_scope、risk_triggers、implementation-ready。
+10. 阶段预演：用 `task check --to <stage>`。
+11. 阶段写入：用 `task set-stage --stage <stage>`。
+
+## 风险画像
+
+创建或准备 task 时，先用以下问题形成影响面画像：
+
+- `action`：这次主要是代码、配置、数据、schema、部署、环境操作、文档还是分析？
+- `component_signals`：出现了哪些组件线索，例如 SQL、DB、Redis、配置、脚本或外部服务？
+- `environment`：目标环境是 local、sandbox、personal、shared、production 还是 unknown？
+- `data_effect`：是否只读、写测试数据、写真实数据、改 schema/migration 或破坏数据？
+- `external_effect`：是否会部署、通知、产生费用、影响安全或写外部系统？
+- `blast_radius`：只影响自己、单服务、多服务、共享用户、外部用户还是未知？
+- `reversibility`：可 git revert、易手工恢复、需备份恢复、困难、不可逆还是未知？
+- `contract_change`：是否改变接口、schema、索引、消息格式、跨服务契约或验收口径？
+- `security_or_permission`：是否涉及权限、认证、安全、密钥、token、账号或隐私？
+- `verification_confidence`：是否能本地验证、需要联调、需要人工验收或路径不清？
+
+`component_signals` 不能单独决定高风险。一个本地测试 SQL 可以是 low/micro；生产库 DDL、真实数据批量 update/delete 必须 high/critical。
+
+## risk/process 选择
+
+- `micro`：只用于 low 风险、范围很小、本地可验证、可 git 回滚的任务。
+- `lightweight`：用于小范围真实任务；需要 task、prepare、evidence，review 和 implementation 可内联。
+- `standard`：用于正常工程任务；需要清楚 scope、implementation-ready、验证和回滚。
+- `high` / `critical`：用于真实后果、高不确定性或较大影响面；必须有 review、implementation ref、risk_triggers、风险接受和验证计划。
+
+遇到 environment、data_effect、external_effect、blast_radius、reversibility、contract_change、security_or_permission 或 verification_confidence 为 unknown/unclear，且继续会写状态或改文件时，先暂停确认。
 
 ## task prepare
 

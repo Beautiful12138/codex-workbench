@@ -66,6 +66,28 @@ low | standard | high | critical
 
 轻量路径只减少仪式和文件数量，不跳过状态 guard。
 
+`impact_profile` 可用于解释风险和流程档位：
+
+```yaml
+impact_profile:
+  action: code_change | config_change | data_read | data_write | schema_change | deployment | environment_operation | documentation | analysis
+  component_signals:
+    - code
+    - sql
+  environment: local | sandbox | personal | shared | production | unknown
+  data_effect: none | read_only | test_data_write | real_data_write | schema_or_migration | destructive
+  external_effect: none | read_only | write | deploy | notify | cost | security
+  blast_radius: self | single_service | multi_service | shared_users | external_users | unknown
+  reversibility: git_revert | easy_manual | backup_restore | hard | irreversible | unknown
+  contract_change: false | true | unknown
+  security_or_permission: false | true | unknown
+  verification_confidence: local_testable | integration_required | manual_acceptance_required | unclear
+```
+
+`component_signals` 是复杂度线索，不是风险判定白名单或黑名单。`impact_profile` 不替代 `risk_level`、`process_level`、`risk_triggers`、review、implementation、evidence 或用户确认。
+
+完整语义见 `docs/policies/risk-and-process.md`。
+
 ## lifecycle 维度
 
 任务可以按需表达：
@@ -73,6 +95,7 @@ low | standard | high | critical
 - `working_scope`
 - `likely_touchpoints`
 - `risk_triggers`
+- `impact_profile`
 - `review.status` / `review.ref`
 - `implementation.ready` / `implementation.conclusion` / `implementation.ref`
 - `validation.status` / `validation.evidence_ref` / `validation.unverified_items`

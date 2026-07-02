@@ -8,6 +8,7 @@
 - 用户明确要求纳入、创建、推进、验证、关闭、归档或记录时，才写包或运行状态变更 CLI。
 - 能只读调查就先调查；会影响代码、配置、数据、权限、安全、部署、外部环境或完成结论时，先确认。
 - 低风险小动作不需要制造空仪式；高影响动作不能靠猜。
+- 风险按真实后果判断，不按 DB、SQL、Redis、MQ、配置、部署等组件名判断；完整判断见 `docs/policies/risk-and-process.md`。
 
 ## 类型判断
 
@@ -39,6 +40,8 @@
 
 原始材料和 AI 推断不是可开发事实；必须经过 intake 并由用户确认后，才成为 readable requirement。
 
+创建 task 时应写清 `risk_level`、`process_level`、`risk_triggers`，必要时写 `impact_profile`。组件名只作为线索；真实数据、生产/共享环境、权限、安全、部署、不可逆、影响他人或验证/回滚不清时，按风险 policy 加严或暂停。
+
 ### maintenance_action
 
 修改 Workbench 自身文档、模板、测试或 CLI，且不绑定真实业务需求时，可作为维护动作处理。若改动需要跨会话接续、影响使用方式或需要留痕，可写 action note；否则用 Git 提交即可。
@@ -46,6 +49,8 @@
 ### ops_action
 
 任何外部环境、服务器、容器、权限、配置、部署、共享状态或运行时状态变更，都属于 ops_action。即使用户语气很轻，也要先确认目标、环境、授权和回滚方式。
+
+Standalone ops action 不因为风险高就自动变成产品 task；但真实后果风险仍必须按 `risk-and-process` 加严授权、记录和回滚。
 
 ### ephemeral_check
 

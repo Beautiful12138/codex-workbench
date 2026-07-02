@@ -42,6 +42,7 @@ class TaskTemplateContext:
     not_allowed_scope: list[str] = field(default_factory=list)
     process_level: str = "micro"
     risk_level: str = "low"
+    impact_profile: dict[str, Any] | None = None
     stage: str = "draft"
     services_file: str = "../../../services/registry.yaml"
     service_refs: list[str] = field(default_factory=list)
@@ -231,6 +232,8 @@ def render_task_package(context: TaskTemplateContext) -> dict[str, str]:
         "service_refs": _list(context.service_refs),
         "validation": {"status": "not_started"},
     }
+    if context.impact_profile:
+        yaml_payload["impact_profile"] = context.impact_profile
     return {
         f"{base}/task.yaml": _yaml(yaml_payload),
         f"{base}/task.md": _ensure_final_newline(_render_task_markdown(context)),

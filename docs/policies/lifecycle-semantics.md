@@ -28,6 +28,8 @@ draft | ready | in_progress | verification_pending | blocked | done | obsolete
 
 `process_level` 只控制显性化强度，不降低安全语义。`micro` 和 `lightweight` 可以少文件、少仪式，但不能跳过目标、范围、验证、交接和完成 guard。
 
+风险按真实后果判断，不按组件名判断。`impact_profile` 用于说明 `risk_level` / `process_level` 的依据；当画像显示真实数据、生产/共享环境、权限安全、部署、不可逆、影响他人、契约变化或验证/回滚不清时，不能按 low/micro 推进。完整规则见 `docs/policies/risk-and-process.md`。
+
 ## requirement readiness
 
 正式任务必须来自可读需求：`requirement.readiness.status=readable` 且 `confirmed_by_user=true`。原始材料、discovery、intake draft 和待确认状态都不能直接授权正式开发。

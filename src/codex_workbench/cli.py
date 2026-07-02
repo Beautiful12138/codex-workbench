@@ -372,7 +372,7 @@ def requirement_create(
         typer.echo(f"created requirement_id={resolved_requirement_id}")
         _refresh_generated_views(root, dry_run=dry_run)
         _echo_markdown_template_hint()
-    except (TemplateError, ValidationError) as exc:
+    except (TemplateError, ValidationError, ValueError) as exc:
         typer.echo(f"validation_error: {exc}", err=True)
         raise typer.Exit(2) from exc
     except WorkbenchError as exc:
@@ -419,6 +419,16 @@ def task_create(
     service_ref: list[str] = typer.Option([], "--service-ref", help="相关服务标记，可重复。"),
     process_level: str = typer.Option("micro", "--process-level", help="流程显性化强度。"),
     risk_level: str = typer.Option("low", "--risk-level", help="风险等级。"),
+    impact_action: str | None = typer.Option(None, "--impact-action", help="影响面画像：主要动作。"),
+    impact_component: list[str] = typer.Option([], "--impact-component", help="影响面画像：组件线索，可重复。"),
+    impact_environment: str | None = typer.Option(None, "--impact-environment", help="影响面画像：目标环境。"),
+    impact_data_effect: str | None = typer.Option(None, "--impact-data-effect", help="影响面画像：数据影响。"),
+    impact_external_effect: str | None = typer.Option(None, "--impact-external-effect", help="影响面画像：外部影响。"),
+    impact_blast_radius: str | None = typer.Option(None, "--impact-blast-radius", help="影响面画像：影响半径。"),
+    impact_reversibility: str | None = typer.Option(None, "--impact-reversibility", help="影响面画像：可回滚性。"),
+    impact_contract_change: str | None = typer.Option(None, "--impact-contract-change", help="影响面画像：true/false/unknown。"),
+    impact_security_or_permission: str | None = typer.Option(None, "--impact-security-or-permission", help="影响面画像：true/false/unknown。"),
+    impact_verification_confidence: str | None = typer.Option(None, "--impact-verification-confidence", help="影响面画像：验证可信度。"),
     stage: str = typer.Option("draft", "--stage", help="初始任务阶段。"),
     workspace_root: Path = typer.Option(Path("."), "--workspace-root", help="Workbench 根目录。"),
     created_at: str | None = typer.Option(None, "--created-at", help="创建时间；默认等于更新时间。"),
@@ -443,6 +453,18 @@ def task_create(
             not_allowed_scope=not_allowed_scope,
             process_level=process_level,
             risk_level=risk_level,
+            impact_profile=_build_impact_profile(
+                action=impact_action,
+                components=impact_component,
+                environment=impact_environment,
+                data_effect=impact_data_effect,
+                external_effect=impact_external_effect,
+                blast_radius=impact_blast_radius,
+                reversibility=impact_reversibility,
+                contract_change=impact_contract_change,
+                security_or_permission=impact_security_or_permission,
+                verification_confidence=impact_verification_confidence,
+            ),
             stage=stage,
             service_refs=service_ref,
         )
@@ -1209,6 +1231,65 @@ def suspicion_create(
         raise typer.Exit(2) from exc
     except WorkbenchError as exc:
         _exit_with_workbench_error(exc)
+
+
+def _build_impact_profile(
+    *,
+    action: str | None,
+    components: list[str],
+    environment: str | None,
+    data_effect: str | None,
+    external_effect: str | None,
+    blast_radius: str | None,
+    reversibility: str | None,
+    contract_change: str | None,
+    security_or_permission: str | None,
+    verification_confidence: str | None,
+) -> dict[str, object] | None:
+    has_profile_input = any(
+        (
+            action,
+            components,
+            environment,
+            data_effect,
+            external_effect,
+            blast_radius,
+            reversibility,
+            contract_change,
+            security_or_permission,
+            verification_confidence,
+        )
+    )
+    if not has_profile_input:
+        return None
+    if not action or not action.strip():
+        raise ValueError("impact_profile_requires_action")
+
+    return {
+        "action": action.strip(),
+        "component_signals": [item.strip() for item in components if item.strip()],
+        "environment": (environment or "unknown").strip(),
+        "data_effect": (data_effect or "none").strip(),
+        "external_effect": (external_effect or "none").strip(),
+        "blast_radius": (blast_radius or "unknown").strip(),
+        "reversibility": (reversibility or "unknown").strip(),
+        "contract_change": _parse_impact_truth(contract_change),
+        "security_or_permission": _parse_impact_truth(security_or_permission),
+        "verification_confidence": (verification_confidence or "unclear").strip(),
+    }
+
+
+def _parse_impact_truth(value: str | None) -> bool | str:
+    if value is None:
+        return "unknown"
+    normalized = value.strip().lower()
+    if normalized == "true":
+        return True
+    if normalized == "false":
+        return False
+    if normalized == "unknown":
+        return "unknown"
+    raise ValueError(f"invalid_impact_truth: {value}")
 
 
 def _echo_package_result(

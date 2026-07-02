@@ -91,6 +91,81 @@ def test_high_risk_in_progress_rejects_blank_scope_and_triggers() -> None:
     assert no_service_refs.reason_codes == ()
 
 
+def test_component_signal_alone_does_not_escalate_risk() -> None:
+    local_sql_task = task(
+        implementation={"ready": True, "conclusion": "scoped"},
+        process_level="micro",
+        risk_level="low",
+        impact_profile={
+            "action": "code_change",
+            "component_signals": ["sql", "database"],
+            "environment": "local",
+            "data_effect": "none",
+            "external_effect": "none",
+            "blast_radius": "single_service",
+            "reversibility": "git_revert",
+            "contract_change": False,
+            "security_or_permission": False,
+            "verification_confidence": "local_testable",
+        },
+    )
+
+    check = evaluate_task_transition(local_sql_task, TaskStage.IN_PROGRESS)
+
+    assert check.allowed is True
+    assert check.reason_codes == ()
+
+
+def test_real_data_write_profile_blocks_low_micro_in_progress() -> None:
+    data_write_task = task(
+        implementation={"ready": True, "conclusion": "scoped"},
+        process_level="micro",
+        risk_level="low",
+        impact_profile={
+            "action": "data_write",
+            "component_signals": ["sql", "database"],
+            "environment": "shared",
+            "data_effect": "real_data_write",
+            "external_effect": "write",
+            "blast_radius": "shared_users",
+            "reversibility": "hard",
+            "contract_change": False,
+            "security_or_permission": False,
+            "verification_confidence": "integration_required",
+        },
+    )
+
+    check = evaluate_task_transition(data_write_task, TaskStage.IN_PROGRESS)
+
+    assert check.allowed is False
+    assert "impact_profile_requires_risk_escalation" in check.reason_codes
+    assert "impact_profile_requires_process_escalation" in check.reason_codes
+
+
+def test_unknown_impact_profile_blocks_micro_in_progress() -> None:
+    unknown_task = task(
+        implementation={"ready": True, "conclusion": "scoped"},
+        process_level="micro",
+        risk_level="low",
+        impact_profile={
+            "action": "code_change",
+            "environment": "unknown",
+            "data_effect": "none",
+            "external_effect": "none",
+            "blast_radius": "unknown",
+            "reversibility": "unknown",
+            "contract_change": "unknown",
+            "security_or_permission": "unknown",
+            "verification_confidence": "unclear",
+        },
+    )
+
+    check = evaluate_task_transition(unknown_task, TaskStage.IN_PROGRESS)
+
+    assert check.allowed is False
+    assert "impact_profile_unknown_for_micro" in check.reason_codes
+
+
 def test_high_or_critical_in_progress_requires_extra_readiness() -> None:
     high_task = task(
         risk_level="high",

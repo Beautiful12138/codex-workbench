@@ -195,12 +195,17 @@ def test_render_requirement_evidence_and_action_are_minimal_and_stable() -> None
     assert "模板输出稳定。" not in requirement_md
     assert "pytest passed" not in evidence_md
     assert evidence_md.startswith("# EV-REQ-20260702-001-TASK-20260702-001 / task REQ-20260702-001-TASK-20260702-001\n")
+    assert "只记录已经发生的任务验证事实" in evidence_md
+    assert "action note 不能替代 evidence" in evidence_md
     assert "未验证项" in evidence_md
     assert "验证结论" in evidence_md
     assert action_yaml["summary"] == "只记录冷路径材料。"
     assert action_yaml["status"] == "executed"
     assert action_yaml["related_refs"] == ["REQ-20260702-001-TASK-20260702-001"]
     assert action_md.startswith("# ACT-001 登记材料\n")
+    assert "Action Note 只记录非任务动作" in action_md
+    assert "不能替代 task evidence" in action_md
+    assert "不能支撑 validation.status=passed" in action_md
     assert "## 操作记录" in action_md
     assert "只记录冷路径材料。" not in action_md
 
