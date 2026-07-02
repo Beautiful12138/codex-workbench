@@ -304,6 +304,39 @@ def test_requirement_create_command_writes_package(tmp_path: Path) -> None:
     assert (tmp_path / "docs" / "active" / "REQ-20260702-001" / "requirement.yaml").exists()
 
 
+def test_requirement_create_can_auto_id_and_default_time(tmp_path: Path, monkeypatch) -> None:
+    create_workspace(tmp_path)
+    write_requirement(tmp_path)
+    monkeypatch.setattr(
+        "codex_workbench.timeutils.current_timestamp",
+        lambda: "2026-07-02T10:30:00+08:00",
+    )
+
+    result = runner.invoke(
+        app,
+        [
+            "requirement",
+            "create",
+            "--title",
+            "自动编号需求",
+            "--goal",
+            "省略 ID 和更新时间也能创建需求。",
+            "--acceptance",
+            "生成下一个当天需求 ID。",
+            "--workspace-root",
+            str(tmp_path),
+        ],
+    )
+
+    requirement_yaml = tmp_path / "docs" / "active" / "REQ-20260702-002" / "requirement.yaml"
+    assert result.exit_code == 0, combined_output(result)
+    assert "created docs/active/REQ-20260702-002/requirement.yaml" in result.output
+    requirement = yaml.safe_load(requirement_yaml.read_text(encoding="utf-8"))
+    assert requirement["id"] == "REQ-20260702-002"
+    assert requirement["created_at"] == "2026-07-02T10:30:00+08:00"
+    assert requirement["updated_at"] == "2026-07-02T10:30:00+08:00"
+
+
 def test_task_create_command_writes_package(tmp_path: Path) -> None:
     create_workspace(tmp_path)
     write_requirement(tmp_path)
@@ -349,6 +382,52 @@ def test_task_create_command_writes_package(tmp_path: Path) -> None:
     assert task_yaml["service_refs"] == ["codex-workbench"]
     assert "创建任务包。" not in task_md
     assert "运行测试。" not in task_md
+
+
+def test_task_create_can_auto_id_and_default_time(tmp_path: Path, monkeypatch) -> None:
+    create_workspace(tmp_path)
+    write_requirement(tmp_path)
+    existing = create_task_via_cli(tmp_path)
+    assert existing.exit_code == 0, combined_output(existing)
+    monkeypatch.setattr(
+        "codex_workbench.timeutils.current_timestamp",
+        lambda: "2026-07-02T10:45:00+08:00",
+    )
+
+    result = runner.invoke(
+        app,
+        [
+            "task",
+            "create",
+            "--requirement-id",
+            "REQ-20260702-001",
+            "--title",
+            "自动编号任务",
+            "--user-goal",
+            "省略 task ID 和更新时间也能创建任务。",
+            "--done",
+            "生成所属需求下的下一个当天任务 ID。",
+            "--next",
+            "继续准备任务。",
+            "--workspace-root",
+            str(tmp_path),
+        ],
+    )
+
+    task_id = "REQ-20260702-001-TASK-20260702-002"
+    task_yaml = tmp_path / "docs" / "active" / task_id / "task.yaml"
+    requirement_yaml = tmp_path / "docs" / "active" / "REQ-20260702-001" / "requirement.yaml"
+    assert result.exit_code == 0, combined_output(result)
+    assert f"created docs/active/{task_id}/task.yaml" in result.output
+    task = yaml.safe_load(task_yaml.read_text(encoding="utf-8"))
+    requirement = yaml.safe_load(requirement_yaml.read_text(encoding="utf-8"))
+    assert task["id"] == task_id
+    assert task["created_at"] == "2026-07-02T10:45:00+08:00"
+    assert task["updated_at"] == "2026-07-02T10:45:00+08:00"
+    assert requirement["task_refs"] == [
+        "REQ-20260702-001-TASK-20260702-001",
+        task_id,
+    ]
 
 
 def test_task_create_refreshes_current_index_and_recovery(tmp_path: Path) -> None:
@@ -1991,6 +2070,58 @@ def test_intake_create_confirm_then_task_create(tmp_path: Path) -> None:
     assert confirmed["updated_at"] == "2026-07-02"
     assert allowed_task.exit_code == 0
     assert (tmp_path / "docs" / "active" / "REQ-20260702-001-TASK-20260702-001" / "task.yaml").exists()
+
+
+def test_intake_create_can_auto_id_and_default_time(tmp_path: Path, monkeypatch) -> None:
+    create_workspace(tmp_path)
+    runner.invoke(
+        app,
+        [
+            "material",
+            "add",
+            "MAT-001",
+            "--title",
+            "思想文件",
+            "--source",
+            "用户提供的本地 Markdown",
+            "--summary",
+            "描述 Workbench 的材料、发现和 intake 边界。",
+            "--received-at",
+            "2026-07-01",
+            "--workspace-root",
+            str(tmp_path),
+        ],
+    )
+    monkeypatch.setattr(
+        "codex_workbench.timeutils.current_timestamp",
+        lambda: "2026-07-02T11:00:00+08:00",
+    )
+
+    result = runner.invoke(
+        app,
+        [
+            "intake",
+            "create",
+            "--title",
+            "自动编号 intake",
+            "--goal",
+            "省略需求 ID 和更新时间也能创建 intake 草案。",
+            "--acceptance",
+            "生成下一个当天需求 ID。",
+            "--material-ref",
+            "MAT-001",
+            "--workspace-root",
+            str(tmp_path),
+        ],
+    )
+
+    requirement_yaml = tmp_path / "docs" / "active" / "REQ-20260702-001" / "requirement.yaml"
+    assert result.exit_code == 0, combined_output(result)
+    assert "created docs/active/REQ-20260702-001/requirement.yaml" in result.output
+    requirement = yaml.safe_load(requirement_yaml.read_text("utf-8"))
+    assert requirement["id"] == "REQ-20260702-001"
+    assert requirement["created_at"] == "2026-07-02T11:00:00+08:00"
+    assert requirement["updated_at"] == "2026-07-02T11:00:00+08:00"
 
 
 def test_intake_confirm_rejects_plain_requirement_package(tmp_path: Path) -> None:

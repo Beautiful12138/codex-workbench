@@ -81,13 +81,15 @@ description: Use when Codex 需要在 codex-workbench 中处理材料、discover
 
 ## 常用命令
 
+创建 requirement、intake 草案或 task 时，优先让 CLI 自动生成 ID 和当前时间；只有用户指定、导入历史或复现测试时才手写 ID。
+
 ```powershell
 $env:PYTHONPATH='src'
 python -m codex_workbench material add MAT-001 --title "..." --source "..." --summary "..." --received-at "..."
 python -m codex_workbench discovery create DISC-001 --title "..." --material-ref MAT-001 --updated-at "..."
-python -m codex_workbench intake create REQ-20260702-001 --title "..." --goal "..." --material-ref MAT-001 --updated-at "..."
+python -m codex_workbench intake create --title "..." --goal "..." --acceptance "..." --material-ref MAT-001
 python -m codex_workbench intake confirm REQ-20260702-001 --updated-at "..."
-python -m codex_workbench task create REQ-20260702-001-TASK-20260702-001 --requirement-id REQ-20260702-001 --title "..." --user-goal "..." --done "..." --next "..."
+python -m codex_workbench task create --requirement-id REQ-20260702-001 --title "..." --user-goal "..." --done "..." --next "..."
 python -m codex_workbench task prepare REQ-20260702-001-TASK-20260702-001 --working-scope "..." --risk-trigger "..."
 python -m codex_workbench task check REQ-20260702-001-TASK-20260702-001 --to in_progress
 python -m codex_workbench task set-stage REQ-20260702-001-TASK-20260702-001 --stage in_progress

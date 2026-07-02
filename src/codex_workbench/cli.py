@@ -9,6 +9,7 @@ from . import __version__
 from .archive import archive_version, list_archive_versions, plan_version_archive
 from .errors import WorkbenchError
 from .doctor import DoctorFinding, run_doctor
+from .ids import allocate_requirement_id, allocate_task_id
 from .index import check_generated_views, generate_index_views
 from .materials import (
     add_material,
@@ -342,27 +343,29 @@ def workspace_root(
 
 @requirement_app.command("create")
 def requirement_create(
-    requirement_id: str = typer.Argument(..., help="需求 ID，例如 REQ-20260702-001。"),
+    requirement_id: str | None = typer.Argument(None, help="需求 ID，例如 REQ-20260702-001；省略则自动生成。"),
     title: str = typer.Option(..., "--title", help="需求标题。"),
     goal: str = typer.Option(..., "--goal", help="需求目标。"),
     acceptance: list[str] = typer.Option(..., "--acceptance", help="验收口径，可重复。"),
     non_goal: list[str] = typer.Option([], "--non-goal", help="非目标，可重复。"),
     workspace_root: Path = typer.Option(Path("."), "--workspace-root", help="Workbench 根目录。"),
     created_at: str | None = typer.Option(None, "--created-at", help="创建时间；默认等于更新时间。"),
-    updated_at: str = typer.Option(..., "--updated-at", help="更新时间。"),
+    updated_at: str | None = typer.Option(None, "--updated-at", help="更新时间；默认当前时间。"),
     dry_run: bool = typer.Option(False, "--dry-run", help="只显示将写入的文件。"),
 ) -> None:
     """创建 requirement package。"""
     try:
         root = find_workspace_root(workspace_root)
+        timestamp = resolve_timestamp(updated_at or created_at)
+        resolved_requirement_id = requirement_id or allocate_requirement_id(root, timestamp)
         context = RequirementTemplateContext(
-            requirement_id=requirement_id,
+            requirement_id=resolved_requirement_id,
             title=title,
             goal=goal,
             acceptance=acceptance,
             non_goals=non_goal,
-            created_at=resolve_timestamp(created_at or updated_at),
-            updated_at=updated_at,
+            created_at=resolve_timestamp(created_at or timestamp),
+            updated_at=resolve_timestamp(updated_at or timestamp),
         )
         result = create_requirement_package(root, context, dry_run=dry_run)
         _echo_package_result(root, result.paths, dry_run=dry_run)
@@ -404,7 +407,7 @@ def requirement_close(
 
 @task_app.command("create")
 def task_create(
-    task_id: str = typer.Argument(..., help="任务 ID，例如 REQ-20260702-001-TASK-20260702-001。"),
+    task_id: str | None = typer.Argument(None, help="任务 ID，例如 REQ-20260702-001-TASK-20260702-001；省略则自动生成。"),
     requirement_id: str = typer.Option(..., "--requirement-id", help="所属需求 ID。"),
     title: str = typer.Option(..., "--title", help="任务标题。"),
     user_goal: str = typer.Option(..., "--user-goal", help="用户目标。"),
@@ -418,21 +421,23 @@ def task_create(
     stage: str = typer.Option("draft", "--stage", help="初始任务阶段。"),
     workspace_root: Path = typer.Option(Path("."), "--workspace-root", help="Workbench 根目录。"),
     created_at: str | None = typer.Option(None, "--created-at", help="创建时间；默认等于更新时间。"),
-    updated_at: str = typer.Option(..., "--updated-at", help="更新时间。"),
+    updated_at: str | None = typer.Option(None, "--updated-at", help="更新时间；默认当前时间。"),
     dry_run: bool = typer.Option(False, "--dry-run", help="只显示将写入的文件。"),
 ) -> None:
     """创建 task package。"""
     try:
         root = find_workspace_root(workspace_root)
+        timestamp = resolve_timestamp(updated_at or created_at)
+        resolved_task_id = task_id or allocate_task_id(root, requirement_id, timestamp)
         context = TaskTemplateContext(
-            task_id=task_id,
+            task_id=resolved_task_id,
             title=title,
             requirement_id=requirement_id,
             user_goal=user_goal,
             done_means=done,
             current_next_step=next_step,
-            created_at=resolve_timestamp(created_at or updated_at),
-            updated_at=updated_at,
+            created_at=resolve_timestamp(created_at or timestamp),
+            updated_at=resolve_timestamp(updated_at or timestamp),
             allowed_scope=allowed_scope,
             not_allowed_scope=not_allowed_scope,
             process_level=process_level,
@@ -441,7 +446,7 @@ def task_create(
             service_refs=service_ref,
         )
         result = create_task_package(root, context, dry_run=dry_run)
-        created_paths = tuple(path for path in result.paths if path.parent.name == task_id)
+        created_paths = tuple(path for path in result.paths if path.parent.name == resolved_task_id)
         updated_paths = tuple(path for path in result.paths if path.parent.name == requirement_id)
         _echo_package_result(root, created_paths, dry_run=dry_run)
         _echo_package_result(root, updated_paths, dry_run=dry_run, verb="updated")
@@ -840,7 +845,7 @@ def discovery_create(
 
 @intake_app.command("create")
 def intake_create(
-    requirement_id: str = typer.Argument(..., help="需求 ID，例如 REQ-20260702-001。"),
+    requirement_id: str | None = typer.Argument(None, help="需求 ID，例如 REQ-20260702-001；省略则自动生成。"),
     title: str = typer.Option(..., "--title", help="需求标题。"),
     goal: str = typer.Option(..., "--goal", help="需求目标。"),
     acceptance: list[str] = typer.Option(..., "--acceptance", help="验收口径，可重复。"),
@@ -854,19 +859,21 @@ def intake_create(
     non_goal: list[str] = typer.Option([], "--non-goal", help="非目标，可重复。"),
     workspace_root: Path = typer.Option(Path("."), "--workspace-root", help="Workbench 根目录。"),
     created_at: str | None = typer.Option(None, "--created-at", help="创建时间；默认等于更新时间。"),
-    updated_at: str = typer.Option(..., "--updated-at", help="更新时间。"),
+    updated_at: str | None = typer.Option(None, "--updated-at", help="更新时间；默认当前时间。"),
     dry_run: bool = typer.Option(False, "--dry-run", help="只显示将写入的文件。"),
 ) -> None:
     """创建 intake 草案；草案未确认前不是 readable requirement。"""
     try:
         root = find_workspace_root(workspace_root)
+        timestamp = resolve_timestamp(updated_at or created_at)
+        resolved_requirement_id = requirement_id or allocate_requirement_id(root, timestamp)
         context = RequirementTemplateContext(
-            requirement_id=requirement_id,
+            requirement_id=resolved_requirement_id,
             title=title,
             goal=goal,
             acceptance=acceptance,
             non_goals=non_goal,
-            created_at=resolve_timestamp(created_at or updated_at),
+            created_at=resolve_timestamp(created_at or timestamp),
             material_refs=material_ref,
             discovery_refs=discovery_ref,
             confirmed_facts=confirmed_fact,
@@ -874,7 +881,7 @@ def intake_create(
             ai_inferences=inference,
             assumptions=assumption,
             questions_for_user=question,
-            updated_at=updated_at,
+            updated_at=resolve_timestamp(updated_at or timestamp),
         )
         result = create_intake_draft(root, context, dry_run=dry_run)
         _echo_package_result(root, result.paths, dry_run=dry_run)

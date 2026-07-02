@@ -27,6 +27,8 @@
 
 普通讨论、解释和只读探索默认不写状态。只有用户明确要纳入、创建、推进、验证、关闭、归档或留下可恢复记录时，才进入 CLI 和包写入。
 
+创建 requirement、intake 草案或 task 时，可以省略 ID 和 `--updated-at`；CLI 会按当前日期生成 `REQ-YYYYMMDD-NNN` / `REQ-...-TASK-YYYYMMDD-NNN`，并写入当前时间。
+
 ## 典型闭环
 
 从需求材料到归档通常是：
@@ -60,9 +62,9 @@
 
 - `material add/list`：登记材料。
 - `discovery create`：登记发现。
-- `intake create/confirm`：创建并确认可读需求。
+- `intake create/confirm`：创建并确认可读需求；创建时可自动生成 requirement ID 和时间。
 - `requirement close`：记录需求关闭确认。
-- `task create`、`task prepare`、`task check`、`task set-stage`、`task block`、`task obsolete`：管理任务包和阶段门禁。
+- `task create`、`task prepare`、`task check`、`task set-stage`、`task block`、`task obsolete`：管理任务包和阶段门禁；创建时可自动生成 task ID 和时间。
 - `task review-create`、`task implementation-create`：按需在任务包内生成说明文档。
 - `evidence create`、`validation apply`、`handoff set`：记录验证事实、验证结论和用户交接。
 - `service add/list/status`：登记服务并做只读状态检查。

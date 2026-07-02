@@ -46,6 +46,7 @@ draft | ready | in_progress | verification_pending | blocked | done | obsolete
 - `task.yaml:id` 必须以 `task.yaml:requirement_id` 加 `-` 作为前缀。
 - requirement 的 `task_refs` 必须引用对应 task id。
 - requirement 和 task YAML 都必须写入 `created_at` 与 `updated_at`。`created_at` 是稳定创建时间，`updated_at` 由 CLI 在状态变化时刷新。
+- CLI 创建 requirement、intake 草案或 task 时，可以省略 ID 和时间；省略后按当前时间生成日期型 ID，并写入 `created_at` / `updated_at`。
 
 任务包内 Markdown 标题应带完整 task id，帮助人和 Codex 阅读；机器校验不从 Markdown 反推归属。
 
