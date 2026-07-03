@@ -16,8 +16,9 @@ from .workspace import resolve_workspace_path
 INDEX_PATH = "docs/generated/index.md"
 RECOVERY_PATH = "docs/generated/recovery.md"
 CURRENT_PATH = "CURRENT.md"
-CURRENT_TASK_LIMIT = 20
-RECOVERY_TASK_LIMIT = 5
+CURRENT_TASK_LIMIT = 5
+CURRENT_WAITING_FEEDBACK_LIMIT = 3
+RECOVERY_TASK_LIMIT = 3
 RECOVERY_REQUIREMENT_LIMIT = 5
 RECOVERY_EVIDENCE_LIMIT = 5
 RECOVERY_CONFLICT_LIMIT = 5
@@ -395,17 +396,25 @@ def _archive_manifest_conflicts(archives: list[_YamlRecord]) -> list[str]:
     return conflicts
 
 
+def _record_link(record: _YamlRecord) -> str:
+    label = _markdown_link_label(record.title or record.id or record.relative_path)
+    return f"[{label}]({record.relative_path})"
+
+
+def _requirement_link(requirement_by_id: dict[str, _YamlRecord], requirement_id: str) -> str:
+    requirement = requirement_by_id.get(requirement_id)
+    if requirement is not None:
+        return _record_link(requirement)
+    if not requirement_id or requirement_id == "-":
+        return "-"
+    return f"(missing requirement: `{requirement_id}`)"
+
+
+def _markdown_link_label(value: str) -> str:
+    return value.replace("[", "\\[").replace("]", "\\]").strip() or "-"
+
+
 def _render_current(snapshot: _IndexSnapshot) -> str:
-    lines = [
-        "# CURRENT",
-        "",
-        "> generated workbench dashboard; YAML remains the source of truth.",
-        "",
-        "## 最近工作",
-        "",
-        "| 最近更新 | 需求 | 任务 | 阶段 | 风险 | 影响面 | 缺口 | 包内容 | 验证 | 下一步 |",
-        "|---|---|---|---|---|---|---|---|---|---|",
-    ]
     active_tasks = [
         task
         for task in snapshot.tasks
@@ -420,9 +429,79 @@ def _render_current(snapshot: _IndexSnapshot) -> str:
         ),
         reverse=True,
     )
-    if not active_tasks:
-        lines.append("| - | - | - | - | - | - | - | - | - | no active tasks |")
-    for task in active_tasks[:CURRENT_TASK_LIMIT]:
+    actionable_tasks = [task for task in active_tasks if not _is_waiting_feedback_task(task)]
+    waiting_feedback_tasks = [task for task in active_tasks if _is_waiting_feedback_task(task)]
+    workspace_state = "baseline" if not snapshot.requirements and not active_tasks else "active"
+    active_task_count = "none" if not active_tasks else str(len(active_tasks))
+    recommended_entry = "chat_or_explore" if not active_tasks else "resume_or_task"
+    write_state = "no_by_default" if not active_tasks else "cli_only"
+    requirement_by_id = {record.id: record for record in snapshot.requirements}
+    lines = [
+        "# CURRENT",
+        "",
+        "> 生成的最近工作面板；详细状态以任务包和命令输出为准。",
+        "",
+        "## 入口建议",
+        "",
+        "| 字段 | 值 |",
+        "|---|---|",
+        f"| workspace_state | {workspace_state} |",
+        f"| active_tasks | {active_task_count} |",
+        f"| recommended_entry | {recommended_entry} |",
+        f"| write_state | {write_state} |",
+        "",
+        "## 最近可推进",
+        "",
+    ]
+    lines.extend(
+        _current_task_table_lines(
+            actionable_tasks[:CURRENT_TASK_LIMIT],
+            requirement_by_id,
+            empty_message="no actionable tasks",
+        )
+    )
+    remaining_actionable = len(actionable_tasks) - CURRENT_TASK_LIMIT
+    if remaining_actionable > 0:
+        lines.extend(["", f"> 还有 {remaining_actionable} 个可推进任务未展示；查 `docs/generated/index.md`。"])
+    lines.extend(["", "## 等待反馈", ""])
+    lines.extend(
+        _current_task_table_lines(
+            waiting_feedback_tasks[:CURRENT_WAITING_FEEDBACK_LIMIT],
+            requirement_by_id,
+            empty_message="no waiting feedback",
+        )
+    )
+    remaining_waiting = len(waiting_feedback_tasks) - CURRENT_WAITING_FEEDBACK_LIMIT
+    if remaining_waiting > 0:
+        lines.extend(["", f"> 还有 {remaining_waiting} 个等待反馈任务未展示；查 `docs/generated/index.md`。"])
+    lines.extend(
+        [
+            "",
+            "## 读取边界",
+            "",
+            "- 本文件只展示最近工作面板，不是真源，也不作为单任务锁。",
+            "- 任务事实以 `docs/active/*/task.yaml` 为准。",
+            "- 查完整 active 目录看 `docs/generated/index.md`；续接和异常看 `docs/generated/recovery.md`。",
+            "- 服务实时状态、开工 guard 和可执行边界以 `task context` / `service context` 为准。",
+        ]
+    )
+    return _final_newline(lines)
+
+
+def _current_task_table_lines(
+    tasks: list[_YamlRecord],
+    requirement_by_id: dict[str, _YamlRecord],
+    *,
+    empty_message: str,
+) -> list[str]:
+    lines = [
+        "| 需求 | 任务 | 阶段 | 服务 refs | 风险缺口 | 验证 | 下一步 | 最近更新 |",
+        "|---|---|---|---|---|---|---|---|",
+    ]
+    if not tasks:
+        lines.append(f"| - | - | - | - | - | - | {empty_message} | - |")
+        return lines
+    for task in tasks:
         data = task.data or {}
         requirement_id = str(data.get("requirement_id", "")).strip() or "-"
         updated_at = _record_timestamp(task, "updated_at") or "-"
@@ -432,39 +511,33 @@ def _render_current(snapshot: _IndexSnapshot) -> str:
         if isinstance(validation, dict):
             validation_status = str(validation.get("status", "not_started")).strip() or "not_started"
         next_step = str(data.get("next_step", "")).strip() or "-"
-        task_label = f"{task.id} {task.title}".strip()
         lines.append(
             "| "
             + " | ".join(
                 [
-                    _table_cell(updated_at),
-                    _table_cell(requirement_id),
-                    _table_cell(task_label),
+                    _table_cell(_requirement_link(requirement_by_id, requirement_id)),
+                    _table_cell(_record_link(task)),
                     _table_cell(stage),
-                    _table_cell(_task_risk_summary(task)),
-                    _table_cell(_task_impact_summary(task)),
+                    _table_cell(_task_service_refs(task)),
                     _table_cell(_task_risk_gaps(task)),
-                    _table_cell(_task_packet_status(task)),
                     _table_cell(validation_status),
                     _table_cell(next_step),
+                    _table_cell(updated_at),
                 ]
             )
             + " |"
         )
-    remaining = len(active_tasks) - CURRENT_TASK_LIMIT
-    if remaining > 0:
-        lines.extend(["", f"> 还有 {remaining} 个 active task 未展示；查 `docs/generated/index.md`。"])
-    lines.extend(
-        [
-            "",
-            "## 读取边界",
-            "",
-            "- 本文件只展示最近工作面板，不是真源，也不作为单任务锁。",
-            "- 任务事实以 `docs/active/*/task.yaml` 为准。",
-            "- 查完整 active 目录看 `docs/generated/index.md`；续接和异常看 `docs/generated/recovery.md`。",
-        ]
-    )
-    return _final_newline(lines)
+    return lines
+
+
+def _is_waiting_feedback_task(task: _YamlRecord) -> bool:
+    data = task.data or {}
+    stage = str(data.get("stage", "")).strip()
+    handoff = data.get("handoff", {})
+    handoff_status = ""
+    if isinstance(handoff, dict):
+        handoff_status = str(handoff.get("status", "")).strip()
+    return stage == "verification_pending" or handoff_status == "waiting_user_validation"
 
 
 def _render_index(snapshot: _IndexSnapshot) -> str:
@@ -478,7 +551,7 @@ def _render_index(snapshot: _IndexSnapshot) -> str:
     ]
     lines.extend(_requirement_lines(snapshot.requirements, snapshot.tasks))
     lines.extend(["", "## Tasks", ""])
-    lines.extend(_task_lines(snapshot.tasks))
+    lines.extend(_task_lines(snapshot.tasks, snapshot.requirements))
     lines.extend(["", "## Services", ""])
     lines.extend(_service_lines(snapshot.services))
     lines.extend(["", "## Materials", ""])
@@ -506,9 +579,9 @@ def _render_recovery(snapshot: _IndexSnapshot) -> str:
     lines = [
         "# Recovery",
         "",
-        "> short generated view; open package YAML for source facts.",
+        "> 生成的续接队列；真实工作现场以 task context、任务包和命令输出为准。",
         "",
-        "## 续接队列",
+        "## 可续接任务",
         "",
     ]
     active_tasks = [
@@ -517,64 +590,40 @@ def _render_recovery(snapshot: _IndexSnapshot) -> str:
         if str(task.data.get("stage", "") if task.data else "") not in {"done", "obsolete"}
     ]
     if active_tasks:
-        active_tasks = sorted(active_tasks, key=lambda item: item.id)
+        active_tasks = sorted(
+            active_tasks,
+            key=lambda item: (
+                _record_timestamp(item, "updated_at"),
+                _record_timestamp(item, "created_at"),
+                item.id,
+            ),
+            reverse=True,
+        )
         requirement_by_id = {requirement.id: requirement for requirement in snapshot.requirements}
-        tasks_by_requirement: dict[str, list[_YamlRecord]] = {}
-        for task in active_tasks:
-            requirement_id = str(task.data.get("requirement_id", "")).strip() if task.data else ""
-            bucket = requirement_id or "(unlinked)"
-            tasks_by_requirement.setdefault(bucket, []).append(task)
-
-        shown_tasks = 0
-        for requirement_id in sorted(tasks_by_requirement):
-            if shown_tasks >= RECOVERY_TASK_LIMIT:
-                break
-            requirement = requirement_by_id.get(requirement_id)
-            title = requirement.title if requirement else "(missing requirement)"
-            lines.append(f"- requirement `{requirement_id}` {title}")
-            for task in tasks_by_requirement[requirement_id]:
-                if shown_tasks >= RECOVERY_TASK_LIMIT:
-                    break
-                lines.append(f"  - {_task_recovery_line(task)}")
-                shown_tasks += 1
-        remaining = len(active_tasks) - shown_tasks
+        for task in active_tasks[:RECOVERY_TASK_LIMIT]:
+            lines.extend(_task_recovery_lines(task, requirement_by_id))
+        remaining = len(active_tasks) - RECOVERY_TASK_LIMIT
         if remaining > 0:
             lines.append(f"- and {remaining} more active tasks")
     else:
         lines.append("- no active tasks")
-    lines.extend(["", "## Requirements", ""])
-    if snapshot.requirements:
-        requirements = sorted(snapshot.requirements, key=lambda item: item.id)
-        for requirement in requirements[:RECOVERY_REQUIREMENT_LIMIT]:
-            lines.append(f"- `{requirement.id}` {requirement.title}")
-        remaining = len(requirements) - RECOVERY_REQUIREMENT_LIMIT
-        if remaining > 0:
-            lines.append(f"- and {remaining} more requirements")
+
+    lines.extend(["", "## 阻塞或异常", ""])
+    blocked_lines = _blocked_task_lines(active_tasks)
+    if blocked_lines:
+        lines.extend(blocked_lines)
     else:
         lines.append("- none")
-    lines.extend(["", "## Latest Evidence", ""])
-    if snapshot.evidences:
-        evidences = sorted(snapshot.evidences, key=lambda item: item.id)
-        for evidence in evidences[:RECOVERY_EVIDENCE_LIMIT]:
-            task_id = evidence.data.get("task_id", "unknown") if evidence.data else "unknown"
-            conclusion = evidence.data.get("conclusion", "unknown") if evidence.data else "unknown"
-            lines.append(f"- `{evidence.id}` task={task_id} conclusion={conclusion}")
-        remaining = len(evidences) - RECOVERY_EVIDENCE_LIMIT
-        if remaining > 0:
-            lines.append(f"- and {remaining} more evidence records")
-    else:
-        lines.append("- none")
-    lines.extend(["", "## Conflicts", ""])
+
+    lines.extend(["", "## 冲突", ""])
     lines.extend(_limited_conflict_lines(snapshot.conflicts))
     return _final_newline(lines)
 
 
-def _task_recovery_line(task: _YamlRecord) -> str:
+def _task_recovery_lines(task: _YamlRecord, requirement_by_id: dict[str, _YamlRecord]) -> list[str]:
     data = task.data or {}
-    stage = data.get("stage", "unknown")
-    process_level = str(data.get("process_level", "")).strip()
-    risk_level = str(data.get("risk_level", "")).strip()
-    services = ", ".join(str(item) for item in data.get("service_refs", []))
+    stage = str(data.get("stage", "unknown")).strip() or "unknown"
+    requirement_id = str(data.get("requirement_id", "")).strip()
     next_step = str(data.get("next_step", "")).strip()
     blocked = data.get("blocked", {})
     blocked_reason = ""
@@ -587,24 +636,35 @@ def _task_recovery_line(task: _YamlRecord) -> str:
         validation_status = str(validation.get("status", "")).strip()
         evidence_ref = str(validation.get("evidence_ref", "")).strip()
 
-    suffix_parts = []
-    if risk_level or process_level:
-        suffix_parts.append(f"risk={risk_level or 'unknown'}/process={process_level or 'unknown'}")
-    suffix_parts.append(f"impact={_task_impact_summary(task)}")
-    suffix_parts.append(f"gaps={_task_risk_gaps(task)}")
-    if services:
-        suffix_parts.append(f"service_refs={services}")
+    lines = [
+        f"- {_record_link(task)} [{stage}]",
+        f"  - 需求：{_requirement_link(requirement_by_id, requirement_id)}",
+        f"  - 服务 refs：{_task_service_refs(task)}",
+        f"  - 风险缺口：{_task_risk_gaps(task)}",
+        f"  - 验证：{validation_status or 'not_started'}",
+    ]
     if next_step:
-        suffix_parts.append(f"next={next_step}")
+        lines.append(f"  - 下一步：{next_step}")
     if blocked_reason:
-        suffix_parts.append(f"blocked={blocked_reason}")
-    if validation_status:
-        validation_text = f"validation={validation_status}"
-        if evidence_ref:
-            validation_text = f"{validation_text} evidence={evidence_ref}"
-        suffix_parts.append(validation_text)
-    suffix = f" {'; '.join(suffix_parts)}" if suffix_parts else ""
-    return f"task `{task.id}` {task.title} [{stage}]{suffix}"
+        lines.append(f"  - 阻塞：{blocked_reason}")
+    if evidence_ref:
+        lines.append(f"  - evidence：`{evidence_ref}`")
+    return lines
+
+
+def _blocked_task_lines(tasks: list[_YamlRecord]) -> list[str]:
+    lines: list[str] = []
+    for task in tasks:
+        data = task.data or {}
+        blocked = data.get("blocked", {})
+        reason = ""
+        if isinstance(blocked, dict):
+            reason = str(blocked.get("reason", "")).strip()
+        if reason:
+            lines.append(f"- {_record_link(task)}：{reason}")
+        if len(lines) >= RECOVERY_TASK_LIMIT:
+            break
+    return lines
 
 
 def _requirement_lines(records: list[_YamlRecord], tasks: list[_YamlRecord]) -> list[str]:
@@ -613,8 +673,8 @@ def _requirement_lines(records: list[_YamlRecord], tasks: list[_YamlRecord]) -> 
     lines: list[str] = []
     lines.extend(
         [
-            "| 需求 | 标题 | readiness | 任务数 | 最近更新 |",
-            "|---|---|---|---:|---|",
+            "| 需求 | readiness | 任务数 | 最近更新 |",
+            "|---|---|---:|---|",
         ]
     )
     task_counts: dict[str, int] = {}
@@ -632,8 +692,7 @@ def _requirement_lines(records: list[_YamlRecord], tasks: list[_YamlRecord]) -> 
             "| "
             + " | ".join(
                 [
-                    _table_cell(record.id),
-                    _table_cell(record.title),
+                    _table_cell(_record_link(record)),
                     _table_cell(str(status)),
                     str(task_counts.get(record.id, 0)),
                     _table_cell(updated_at),
@@ -644,14 +703,15 @@ def _requirement_lines(records: list[_YamlRecord], tasks: list[_YamlRecord]) -> 
     return lines
 
 
-def _task_lines(records: list[_YamlRecord]) -> list[str]:
+def _task_lines(records: list[_YamlRecord], requirements: list[_YamlRecord]) -> list[str]:
     if not records:
         return ["- none"]
+    requirement_by_id = {record.id: record for record in requirements}
     lines: list[str] = []
     lines.extend(
         [
-            "| 需求 | 任务 | 标题 | 阶段 | 风险 | 影响面 | 缺口 | 包内容 | 验证 | 最近更新 | 下一步 |",
-            "|---|---|---|---|---|---|---|---|---|---|---|",
+            "| 需求 | 任务 | 阶段 | 风险 | 影响面 | 缺口 | 包内容 | 验证 | 最近更新 | 下一步 |",
+            "|---|---|---|---|---|---|---|---|---|---|",
         ]
     )
     for record in sorted(records, key=lambda item: item.id):
@@ -668,9 +728,8 @@ def _task_lines(records: list[_YamlRecord]) -> list[str]:
             "| "
             + " | ".join(
                 [
-                    _table_cell(requirement_id),
-                    _table_cell(record.id),
-                    _table_cell(record.title),
+                    _table_cell(_requirement_link(requirement_by_id, requirement_id)),
+                    _table_cell(_record_link(record)),
                     _table_cell(stage),
                     _table_cell(_task_risk_summary(record)),
                     _table_cell(_task_impact_summary(record)),
@@ -802,6 +861,14 @@ def _task_risk_gaps(task: _YamlRecord) -> str:
     if model is None:
         return "invalid_task_model"
     return risk_gap_summary(model)
+
+
+def _task_service_refs(task: _YamlRecord) -> str:
+    data = task.data or {}
+    services = _string_list(data.get("service_refs", []))
+    if not services:
+        return "-"
+    return ", ".join(f"`{service}`" for service in services)
 
 
 def _task_model_or_none(task: _YamlRecord) -> TaskState | None:

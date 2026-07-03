@@ -32,7 +32,7 @@ impact_profile:
     - sql
     - database
     - config
-  environment: local | sandbox | personal | shared | production | unknown
+  environment: local | test | sandbox | personal | shared | production | unknown
   data_effect: none | read_only | test_data_write | real_data_write | schema_or_migration | destructive
   external_effect: none | read_only | write | deploy | notify | cost | security
   blast_radius: self | single_service | multi_service | shared_users | external_users | unknown
@@ -129,10 +129,11 @@ AI 负责根据上下文填写 `impact_profile`、`risk_level`、`process_level`
 
 - task 创建后发现影响面变化，用 `task impact-set` 更新风险画像；该命令必须记录更新原因。
 - `task prepare` 可以在开工准入时同步补齐或修正 `impact_profile`、`risk_level` 和 `process_level`。
+- 已有 `impact_profile` 时，`task prepare` / `task impact-set` 可以局部覆盖字段；新建画像仍必须有 `action`。
 - high / critical 进入 `in_progress` 前必须有 review、implementation ref、working_scope、risk_triggers 和风险接受。
 - high / critical 进入 `in_progress` 前必须有 `impact_profile`。
 - 明显真实后果字段不能与 `risk_level=low` 或 `process_level=micro` 同时出现。
 - 环境、授权、验证或回滚不清时，不能用 task stage 推进掩盖缺口。
 - generated views 只展示风险摘要和缺口，不复制长正文。
 
-CLI 不做复杂业务自动评分器，也不能因为 `component_signals` 中出现某个组件名就自动判高风险。`doctor check` 只报告机器真源和 lifecycle 的硬问题，不做启发式风险扫描；风险缺口主要通过 `task check`、`CURRENT.md`、`docs/generated/index.md` 和 `docs/generated/recovery.md` 暴露。
+CLI 不做复杂业务自动评分器，也不能因为 `component_signals` 中出现某个组件名就自动判高风险。`doctor check` 只报告机器真源和 lifecycle 的硬问题，不做启发式风险扫描；风险缺口主要通过 `workspace context`、`task context`、`task check` 和 generated views 暴露。

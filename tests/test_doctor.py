@@ -230,6 +230,32 @@ def test_doctor_check_blocks_high_risk_in_progress_without_extra_readiness(
     assert "missing_high_risk_acceptance" in output
 
 
+def test_doctor_check_does_not_coach_draft_high_risk_missing_impact_profile(
+    tmp_path: Path,
+) -> None:
+    create_workspace(tmp_path)
+    write_task(tmp_path, stage="draft", risk_level="high")
+    runner.invoke(app, ["index", "generate", "--workspace-root", str(tmp_path)])
+
+    result = runner.invoke(
+        app,
+        [
+            "doctor",
+            "check",
+            "--workspace-root",
+            str(tmp_path),
+            "--show-warnings",
+            "--show-suggestions",
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert result.output.strip() == "doctor clean"
+    output = combined_output(result)
+    assert "missing_high_risk_impact_profile" not in output
+    assert "missing_impact_profile" not in output
+
+
 def test_doctor_check_blocks_invalid_action_type(tmp_path: Path) -> None:
     create_workspace(tmp_path)
     action_dir = tmp_path / "docs" / "actions"

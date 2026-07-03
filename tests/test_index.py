@@ -38,6 +38,12 @@ def write_yaml(path: Path, payload: dict) -> None:
     )
 
 
+def markdown_section(text: str, start: str, end: str) -> str:
+    start_index = text.index(start)
+    end_index = text.index(end, start_index)
+    return text[start_index:end_index]
+
+
 def create_full_index_fixture(root: Path) -> None:
     create_workspace(root)
     write_yaml(
@@ -200,28 +206,114 @@ def test_generate_index_views_rebuilds_generated_outputs_without_source_writes(t
     current_text = current_path.read_text(encoding="utf-8")
     assert result.paths == (current_path, index_path, recovery_path)
     assert "# CURRENT" in current_text
-    assert "| 最近更新 | 需求 | 任务 | 阶段 | 风险 | 影响面 | 缺口 | 包内容 | 验证 | 下一步 |" in current_text
-    assert "REQ-20260702-001-TASK-20260702-001" in current_text
-    assert "standard/standard" in current_text
-    assert "code_change local data=none" in current_text
-    assert "review, implementation, evidence" in current_text
+    assert "生成的最近工作面板；详细状态以任务包和命令输出为准。" in current_text
+    assert "## 最近可推进" in current_text
+    assert "## 等待反馈" in current_text
+    assert "| 需求 | 任务 | 阶段 | 服务 refs | 风险缺口 | 验证 | 下一步 | 最近更新 |" in current_text
+    assert "## 最近工作" not in current_text
+    assert "| 最近更新 | 需求 | 任务 | 阶段 | 风险 | 影响面 | 缺口 | 包内容 | 验证 | 下一步 |" not in current_text
+    assert "[构建 Workbench](docs/active/REQ-20260702-001/requirement.yaml)" in current_text
+    assert "[生成索引](docs/active/REQ-20260702-001-TASK-20260702-001/task.yaml)" in current_text
+    assert "REQ-20260702-001-TASK-20260702-001 生成索引" not in current_text
+    assert "`codex-workbench`" in current_text
+    assert "code_change local data=none" not in current_text
+    assert "review, implementation, evidence" not in current_text
     assert "generated view; YAML remains the source of truth" in index_text
-    assert "| 需求 | 标题 | readiness | 任务数 | 最近更新 |" in index_text
-    assert "| REQ-20260702-001 | 构建 Workbench | readable | 1 | 2026-07-01 |" in index_text
-    assert "| 需求 | 任务 | 标题 | 阶段 | 风险 | 影响面 | 缺口 | 包内容 | 验证 | 最近更新 | 下一步 |" in index_text
-    assert "| REQ-20260702-001 | REQ-20260702-001-TASK-20260702-001 | 生成索引 | in_progress | standard/standard | code_change local data=none external=none radius=single_service rollback=git_revert | none | review, implementation, evidence | passed | 2026-07-01T10:00:00+08:00 | - |" in index_text
+    assert "| 需求 | readiness | 任务数 | 最近更新 |" in index_text
+    assert "| [构建 Workbench](docs/active/REQ-20260702-001/requirement.yaml) | readable | 1 | 2026-07-01 |" in index_text
+    assert "| 需求 | 任务 | 阶段 | 风险 | 影响面 | 缺口 | 包内容 | 验证 | 最近更新 | 下一步 |" in index_text
+    assert "| [构建 Workbench](docs/active/REQ-20260702-001/requirement.yaml) | [生成索引](docs/active/REQ-20260702-001-TASK-20260702-001/task.yaml) | in_progress | standard/standard | code_change local data=none external=none radius=single_service rollback=git_revert | none | review, implementation, evidence | passed | 2026-07-01T10:00:00+08:00 | - |" in index_text
     assert "`codex-workbench`" in index_text
     assert "ACT-001" in index_text
     assert "CHG-001" in index_text
     assert "DEC-001" in index_text
     assert "SUS-001" in index_text
-    assert "## 续接队列" in recovery_text
-    assert "REQ-20260702-001-TASK-20260702-001" in recovery_text
-    assert "impact=code_change local data=none" in recovery_text
-    assert "gaps=none" in recovery_text
+    assert "## 可续接任务" in recovery_text
+    assert "生成的续接队列；真实工作现场以 task context、任务包和命令输出为准。" in recovery_text
+    assert "- [生成索引](docs/active/REQ-20260702-001-TASK-20260702-001/task.yaml) [in_progress]" in recovery_text
+    assert "  - 需求：[构建 Workbench](docs/active/REQ-20260702-001/requirement.yaml)" in recovery_text
+    assert "  - 服务 refs：`codex-workbench`" in recovery_text
+    assert "## Requirements" not in recovery_text
+    assert "## Latest Evidence" not in recovery_text
+    assert "task `REQ-20260702-001-TASK-20260702-001` 生成索引" not in recovery_text
+    assert "impact=code_change local data=none" not in recovery_text
+    assert "  - 风险缺口：none" in recovery_text
     assert "full evidence body must stay out" not in recovery_text
     assert "D:/private/raw/philosophy.md" not in index_text
     assert source_yaml.read_text(encoding="utf-8") == before_source
+
+
+def test_current_view_renders_entry_advice_for_empty_baseline(tmp_path: Path) -> None:
+    create_workspace(tmp_path)
+
+    result = generate_index_views(tmp_path, dry_run=True)
+
+    assert "## 入口建议" in result.current_text
+    assert "| workspace_state | baseline |" in result.current_text
+    assert "| active_tasks | none |" in result.current_text
+    assert "| recommended_entry | chat_or_explore |" in result.current_text
+    assert "| write_state | no_by_default |" in result.current_text
+
+
+def test_current_view_keeps_waiting_feedback_out_of_recent_actionable_limit(tmp_path: Path) -> None:
+    create_workspace(tmp_path)
+    task_ids = [f"REQ-20260702-001-TASK-20260702-{index:03d}" for index in range(1, 8)]
+    write_yaml(
+        tmp_path / "docs" / "active" / "REQ-20260702-001" / "requirement.yaml",
+        {
+            "schema_version": "0.1",
+            "id": "REQ-20260702-001",
+            "title": "需求一",
+            "goal": "测试 CURRENT 分区。",
+            "created_at": "2026-07-01T09:00:00+08:00",
+            "updated_at": "2026-07-01T09:00:00+08:00",
+            "acceptance": ["等待反馈不挤占可推进任务。"],
+            "readiness": {"status": "readable", "confirmed_by_user": True},
+            "task_refs": task_ids,
+        },
+    )
+    waiting_task = {
+        "id": task_ids[0],
+        "title": "发布到测试环境",
+        "stage": "verification_pending",
+        "next_step": "等待用户测试。",
+        "updated_at": "2026-07-01T18:00:00+08:00",
+        "handoff": {"status": "waiting_user_validation", "note": "已交给用户测试。"},
+        "validation": {"status": "partial"},
+    }
+    actionable_tasks = [
+        {
+            "id": task_ids[index],
+            "title": f"可推进任务 {index}",
+            "stage": "in_progress",
+            "next_step": f"继续处理 {index}。",
+            "updated_at": f"2026-07-01T1{7 - index}:00:00+08:00",
+            "validation": {"status": "not_started"},
+        }
+        for index in range(1, 7)
+    ]
+    for payload in [waiting_task, *actionable_tasks]:
+        write_yaml(
+            tmp_path / "docs" / "active" / payload["id"] / "task.yaml",
+            {
+                "schema_version": "0.1",
+                "requirement_id": "REQ-20260702-001",
+                "created_at": payload["updated_at"],
+                **payload,
+            },
+        )
+
+    result = generate_index_views(tmp_path, dry_run=True)
+    actionable_section = markdown_section(result.current_text, "## 最近可推进", "## 等待反馈")
+    waiting_section = markdown_section(result.current_text, "## 等待反馈", "## 读取边界")
+
+    assert "发布到测试环境" not in actionable_section
+    assert "发布到测试环境" in waiting_section
+    for index in range(1, 6):
+        assert f"可推进任务 {index}" in actionable_section
+    assert "可推进任务 6" not in actionable_section
+    assert "还有 1 个可推进任务未展示" in actionable_section
+    assert "waiting_user_validation" in waiting_section or "partial" in waiting_section
 
 
 def test_generate_index_views_dry_run_does_not_write_generated_files(tmp_path: Path) -> None:
@@ -234,7 +326,7 @@ def test_generate_index_views_dry_run_does_not_write_generated_files(tmp_path: P
     assert not (tmp_path / "docs" / "generated" / "index.md").exists()
     assert not (tmp_path / "docs" / "generated" / "recovery.md").exists()
     assert "REQ-20260702-001-TASK-20260702-001" in result.index_text
-    assert "## 续接队列" in result.recovery_text
+    assert "## 可续接任务" in result.recovery_text
 
 
 def test_generated_views_show_risk_gaps_without_expanding_profile(tmp_path: Path) -> None:
@@ -404,13 +496,14 @@ def test_recovery_groups_active_tasks_by_requirement(tmp_path: Path) -> None:
 
     result = generate_index_views(tmp_path, dry_run=True)
 
-    assert "## 续接队列" in result.recovery_text
-    assert "- requirement `REQ-20260702-001` 需求一" in result.recovery_text
-    assert "task `REQ-20260702-001-TASK-20260702-001` 实现恢复视图 [in_progress]" in result.recovery_text
-    assert "risk=high/process=standard" in result.recovery_text
-    assert "next=继续增强 recovery。" in result.recovery_text
-    assert "blocked=等待测试样例确认。" in result.recovery_text
-    assert "validation=partial evidence=EV-REQ-20260702-001-TASK-20260702-001" in result.recovery_text
+    assert "## 可续接任务" in result.recovery_text
+    assert "- [实现恢复视图](docs/active/REQ-20260702-001-TASK-20260702-001/task.yaml) [in_progress]" in result.recovery_text
+    assert "  - 需求：[需求一](docs/active/REQ-20260702-001/requirement.yaml)" in result.recovery_text
+    assert "task `REQ-20260702-001-TASK-20260702-001` 实现恢复视图" not in result.recovery_text
+    assert "risk=high/process=standard" not in result.recovery_text
+    assert "  - 下一步：继续增强 recovery。" in result.recovery_text
+    assert "  - 阻塞：等待测试样例确认。" in result.recovery_text
+    assert "  - 验证：partial" in result.recovery_text
 
 
 def test_bad_yaml_is_reported_as_conflict_instead_of_raising(tmp_path: Path) -> None:
@@ -458,9 +551,50 @@ def test_recovery_view_is_bounded_and_uses_material_output_allowlist(tmp_path: P
     result = generate_index_views(tmp_path, dry_run=True)
 
     assert len(result.recovery_text.splitlines()) <= 35
-    assert "and 6 more active tasks" in result.recovery_text
+    assert "and 8 more active tasks" in result.recovery_text
     assert "token=abc123" not in result.index_text
     assert "[redacted]" in result.index_text
+
+
+def test_recovery_blocked_section_scans_all_active_tasks(tmp_path: Path) -> None:
+    create_workspace(tmp_path)
+    task_ids = [f"REQ-20260702-001-TASK-20260702-{index:03d}" for index in range(1, 6)]
+    write_yaml(
+        tmp_path / "docs" / "active" / "REQ-20260702-001" / "requirement.yaml",
+        {
+            "schema_version": "0.1",
+            "id": "REQ-20260702-001",
+            "title": "需求一",
+            "goal": "测试 recovery 阻塞扫描。",
+            "acceptance": ["旧任务阻塞仍可见。"],
+            "task_refs": task_ids,
+        },
+    )
+    for index, task_id in enumerate(task_ids, start=1):
+        payload = {
+            "schema_version": "0.1",
+            "id": task_id,
+            "requirement_id": "REQ-20260702-001",
+            "title": f"任务 {index}",
+            "stage": "in_progress",
+            "updated_at": f"2026-07-01T0{6 - index}:00:00+08:00",
+            "validation": {"status": "not_started"},
+        }
+        if index == 4:
+            payload["blocked"] = {
+                "reason": "等待外部确认。",
+                "blocked_by": "user",
+                "resume_condition": "用户确认后继续。",
+                "resume_stage": "ready",
+            }
+        write_yaml(tmp_path / "docs" / "active" / task_id / "task.yaml", payload)
+
+    result = generate_index_views(tmp_path, dry_run=True)
+
+    assert "- [任务 4](docs/active/REQ-20260702-001-TASK-20260702-004/task.yaml) [in_progress]" not in result.recovery_text
+    assert "and 2 more active tasks" in result.recovery_text
+    assert "## 阻塞或异常" in result.recovery_text
+    assert "- [任务 4](docs/active/REQ-20260702-001-TASK-20260702-004/task.yaml)：等待外部确认。" in result.recovery_text
 
 
 def test_generate_index_views_lists_archive_without_polluting_recovery(

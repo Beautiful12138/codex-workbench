@@ -8,10 +8,25 @@
 
 服务可以在 Workbench 目录内，也可以是外部绝对路径。未登记服务可以只读探索；需要长期协作、修改或任务关联时再登记。
 
+`workspace context` 默认只读 `services/registry.yaml`，显示服务名、用途和活动任务引用数量，不深入检查服务路径、文件数、入口候选或 Git 状态。大型项目中，不要为了第一眼入口自动巡检服务仓库。
+
+`service context <服务名>` 是只读工作面板，用来判断服务路径是否存在、目录是否为空、是否能看到常见入口文件，以及 Git 状态是否只针对服务目录读取。它帮助 Codex 判断“能不能接这个任务”，不代表 Workbench 接管服务仓库。需要批量探测时可以显式运行 `workspace context --check-services`，但这不是默认入口。
+
+## 环境资料目录
+
+`environments/` 是本地环境资料夹，用 Markdown 自由记录测试环境、服务器、数据库、GitLab、网站、Nacos、Redis、MQ、K8s、账号密码、token、常用命令和操作方式。
+
+该目录按实际项目组织文件，不要求字段模板，也不由 CLI/schema 接管。可以是一份 `test.md`，也可以按项目、系统、服务器或组件拆成多份 Markdown。
+
+涉及环境访问、接口联调、测试验证、服务器、数据库、GitLab、网站、账号密码或外部系统操作时，先查 `environments/` 中相关资料。信息缺失时不要猜地址、账号、库名、密码、namespace 或 token。
+
+默认按测试环境资料理解；如果文档或用户明确指出 production、shared、customer、不可逆或会影响他人，按风险 policy 暂停确认或加严。
+
 ## service_refs
 
 - `service_refs` 表示任务相关服务。
 - 它帮助恢复上下文、生成 index/recovery、发现缺失服务。
+- `task context` 会聚合相关服务的 service context，帮助发现空目录、缺入口或未知服务；当一个任务挂载很多服务时，默认只展开前 5 个唯一服务。若仍有未检查服务，代码修改能力会提示 `service_check_limited`；需要继续实现时，先用 `--service-check-limit` 扩大检查范围，或点名 `service context <服务名>` 确认本次触及服务。
 - 它不是文件路径白名单。
 - 它不是修改授权。
 - 写出的 service ref 必须能对应已登记服务。

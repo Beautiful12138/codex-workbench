@@ -664,7 +664,17 @@ def _apply_task_impact_update(
     if risk_level is not None:
         data["risk_level"] = risk_level.strip()
     if impact_profile is not None:
-        data["impact_profile"] = impact_profile
+        existing_profile = data.get("impact_profile")
+        if isinstance(existing_profile, dict):
+            data["impact_profile"] = {**existing_profile, **impact_profile}
+        else:
+            if "action" not in impact_profile:
+                raise WorkbenchError(
+                    ErrorCode.VALIDATION_ERROR,
+                    "impact_profile_requires_action",
+                    exit_code=2,
+                )
+            data["impact_profile"] = impact_profile
     if risk_triggers is not None:
         triggers = _clean_list(risk_triggers)
         if triggers:

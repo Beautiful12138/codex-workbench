@@ -62,6 +62,7 @@ class ImpactAction(str, Enum):
 
 class ImpactEnvironment(str, Enum):
     LOCAL = "local"
+    TEST = "test"
     SANDBOX = "sandbox"
     PERSONAL = "personal"
     SHARED = "shared"

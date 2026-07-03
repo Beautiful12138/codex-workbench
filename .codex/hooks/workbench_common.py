@@ -57,9 +57,9 @@ def session_start_context(root: Path | None) -> str:
         return ""
     return "\n".join(
         [
-            "Workbench：从 CURRENT.md 入口卡开始；按用户请求、generated 视图、CLI 参数或包路径选择工作对象。",
-            "状态变更优先用 CLI；generated 视图只是索引，不能覆盖包 YAML 真源。",
-            "讨论/只读探索不写状态；改文件前先打开被选中的任务包。",
+            "Workbench：优先用 workspace context 接住现场；CURRENT/recovery/index 只辅助定位，不是真源。",
+            "讨论/只读探索不写状态；选中正式 task、写状态、推进阶段或声明完成时，再打开任务包和 CLI。",
+            "先校验再配合：多思考一步，用户方向不自动等于事实正确。",
         ]
     )
 
@@ -69,9 +69,8 @@ def user_prompt_context(root: Path | None) -> str:
         return ""
     return "\n".join(
         [
-            "Workbench 提醒：讨论和只读探索不写状态；要纳入任务时等用户明确说。",
-            "状态变更用 CLI 写包 YAML；无 evidence/handoff 不标 done。",
-            "范围、验收、服务关系、公开契约、数据模型或确认口径变化时先暂停。",
+            "Workbench 提醒：默认讨论/聊天/只读探索不写状态；改代码、写状态、碰外部影响或声明完成前，再打开任务规则和 CLI。",
+            "先校验再配合：多思考一步，用户方向不自动等于事实正确；发现事实、风险或规则冲突时，简短提醒并给出更稳路径。",
         ]
     )
 

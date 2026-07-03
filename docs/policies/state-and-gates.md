@@ -53,12 +53,14 @@ task 包应回答：
 - validation 是基于 evidence 的判断。
 - handoff 是用户验收维度。
 - 三者不能互相替代。
+- gate-check 结果不能作为交付 evidence；它只能说明门禁预演或阻塞诊断发现了什么，不能替代任务本身的交付验证事实。
 
 不能算 evidence 的例子：
 
 - action note。
 - suspicion log。
 - doctor clean。
+- gate-check 输出或 `task check` 预演结果。
 - 测试计划。
 - AI 口头判断。
 - 用户说“先这样吧”但未确认验收。

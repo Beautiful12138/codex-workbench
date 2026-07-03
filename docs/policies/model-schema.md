@@ -74,7 +74,7 @@ impact_profile:
   component_signals:
     - code
     - sql
-  environment: local | sandbox | personal | shared | production | unknown
+  environment: local | test | sandbox | personal | shared | production | unknown
   data_effect: none | read_only | test_data_write | real_data_write | schema_or_migration | destructive
   external_effect: none | read_only | write | deploy | notify | cost | security
   blast_radius: self | single_service | multi_service | shared_users | external_users | unknown

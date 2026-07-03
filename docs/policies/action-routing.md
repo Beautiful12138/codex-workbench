@@ -16,6 +16,7 @@
 | --- | --- | --- |
 | `discussion` | 解释、比较、判断方向、问是否合理 | 不落档 |
 | `read_only_exploration` | 看文件、看状态、看日志、定位问题 | 通常不落档；支撑需求时写 discovery |
+| `small-fix` | 用户明确授权的小型低风险修改 | 不自动创建正式 task；必要时写 action note |
 | `product_task` | 用户确认要实现、修复或调整交付目标 | material / discovery / intake / task / evidence |
 | `maintenance_action` | Workbench 自身维护、文档整理、本地工具修补 | 必要时写 action note |
 | `ops_action` | 环境、权限、配置、部署、运行状态、外部持久变更 | 先确认授权；必要时写 action note |
@@ -34,6 +35,14 @@
 
 用户说“看看”“定位”“查一下”“读一下日志/配置/代码”时，默认只读探索。可以使用搜索、读取文件、运行只读命令。探索结果如果会成为需求事实，应写 discovery；否则不落档。
 
+### small-fix
+
+用户明确授权的小型低风险修改，可以直接最小改动和最小验证，不自动创建正式 task。是否能走 `small-fix`，必须按 `docs/policies/risk-and-process.md` 的风险公式和影响面画像判断，而不是按“改动看起来小”或组件名判断。
+
+快速判断时至少看：`action`、`environment`、`data_effect`、`external_effect`、`blast_radius`、`reversibility`、`contract_change`、`security_or_permission`、`verification_confidence`。只有影响清楚、低风险、可本地验证、可回滚、无真实数据和外部持久影响时，才保持 `small-fix`。
+
+如果影响面不清、验证或回滚不清，或触发真实后果风险，升级为正式 task 或 ops_action。若小修需要跨会话接续、影响使用方式或需要留痕，可写 action note。
+
 ### product_task
 
 用户明确要实现、修复、修改可交付行为，或要求推进某个 requirement/task 时，进入产品任务流。产品任务不能用 action note 替代。
@@ -45,6 +54,14 @@
 ### maintenance_action
 
 修改 Workbench 自身文档、模板、测试或 CLI，且不绑定真实业务需求时，可作为维护动作处理。若改动需要跨会话接续、影响使用方式或需要留痕，可写 action note；否则用 Git 提交即可。
+
+### Workbench 自身维护
+
+修改 codex-workbench 自身的文档、policy、skill、CLI、测试、模板或 generated view 逻辑，默认是 `maintenance_action / repo maintenance`，不强制创建 requirement/task。
+
+用户明确授权后，可以直接改文件、运行验证和提交。只有用户明确说“纳入 Workbench 流程”“作为正式需求管理”或需要多轮长期跟踪时，才创建 requirement/task。
+
+若自维护动作会改变外部环境、数据、部署、权限或其他仓库状态，按 `ops_action` 和风险 policy 加严；若只是本仓库小修小改，保持轻量。
 
 ### ops_action
 

@@ -34,7 +34,7 @@ skill 不替代包 YAML、evidence、CLI 或用户确认。skill 应告诉 Codex
 
 ## 接续
 
-新窗口先读 `AGENTS.md`、`CURRENT.md` 和 `docs/generated/recovery.md`。若选择到 task，再读 task YAML/Markdown；若需要完整活动盘点，再读 `docs/generated/index.md`。若要推进阶段、验证或归档，再读对应 evidence、handoff、policy。
+新窗口先读 `AGENTS.md`，再运行 `workspace context`。若选择到 task，先用 `task context` 看轻量工作面；若涉及服务，先用 `service context` 看真实路径和 Git 粒度。需要完整活动盘点时，再读 `CURRENT.md`、`docs/generated/recovery.md` 或 `docs/generated/index.md`；需要写状态、推进阶段、验证或归档时，再读对应 task YAML/Markdown、evidence、handoff、policy。
 
 不要把旧聊天摘要覆盖状态真源。旧摘要只能作为线索。
 

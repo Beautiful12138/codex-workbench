@@ -1,19 +1,15 @@
 # Recovery
 
-> short generated view; open package YAML for source facts.
+> 生成的续接队列；真实工作现场以 task context、任务包和命令输出为准。
 
-## 续接队列
+## 可续接任务
 
 - no active tasks
 
-## Requirements
+## 阻塞或异常
 
 - none
 
-## Latest Evidence
-
-- none
-
-## Conflicts
+## 冲突
 
 - none

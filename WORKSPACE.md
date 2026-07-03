@@ -9,6 +9,16 @@
 - `README.md`：人类使用说明和 CLI 主路径。
 - `WORKSPACE.md`：本文件，说明目录职责。
 
+## 文档职责
+
+- AGENTS.md：AI 启动路由器。
+- CURRENT.md：最近工作面板。
+- README.md：人类使用说明。
+- WORKSPACE.md：目录地图。
+- skills：按场景的详细操作手册。
+- policies：规则边界。
+- hooks：轻提醒，不决策。
+
 ## 运行期目录
 
 - `docs/inbox/`：材料和 discovery 入口。
@@ -21,6 +31,7 @@
 - `docs/decisions/`：长期决策记录。
 - `docs/suspicions/`：疑点线索记录。
 - `services/`：服务登记和只读状态输入。
+- `environments/`：本地环境资料夹，保存服务器、数据库、GitLab、网站、账号密码和操作方式等自由 Markdown。
 
 ## 工具目录
 
@@ -33,10 +44,12 @@
 ## 工作流关系
 
 1. 普通讨论和只读探索默认不写状态。
-2. 产品需求先进入 material / discovery / intake。
-3. 用户确认后，requirement 才 readable。
-4. task 是执行界面，进入实现前必须准备范围、风险触发器、验证方式和恢复提示。
-5. 多个 requirement 和 task 可同时存在，工作对象由用户请求、显式路径、ID、`CURRENT.md` 或 generated views 辅助选择。
-6. 服务登记帮助恢复上下文，不接管外部服务仓库 Git 生命周期。
-7. 验证事实写入 evidence，validation 和 handoff 基于 evidence 与用户验收推进。
-8. done、requirement close 和 archive 是独立门禁，不能互相替代。
+2. 默认入口是 `workspace context -> task context -> service context -> task package`。
+3. 产品需求先进入 material / discovery / intake。
+4. 用户确认后，requirement 才 readable。
+5. task 是执行界面，进入实现前必须准备范围、风险触发器、验证方式和恢复提示。
+6. 多个 requirement 和 task 可同时存在，工作对象由用户请求、显式路径、ID、`CURRENT.md` 或 generated views 辅助选择。
+7. 服务登记帮助恢复上下文，不接管外部服务仓库 Git 生命周期。
+8. 涉及环境、服务器、数据库、GitLab、网站、联调、账号密码或操作方式时，先查 `environments/` 下相关自由 Markdown。
+9. 验证事实写入 evidence，validation 和 handoff 基于 evidence 与用户验收推进。
+10. done、requirement close 和 archive 是独立门禁，不能互相替代。

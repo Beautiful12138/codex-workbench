@@ -13,11 +13,14 @@ description: Use when Codex 需要在 codex-workbench 中处理材料、discover
 - 创建或确认 requirement。
 - 创建 task。
 - 处理 task prepare、阶段推进、blocked 或 obsolete。
+- 处理涉及测试环境、服务器、数据库、GitLab、网站、联调、账号密码或操作方式的任务。
 - 判断当前请求是产品任务、维护动作还是只读探索。
 
 ## 核心原则
 
 产品任务必须从可读需求出发。原始材料、截图、聊天摘要、AI 推断和只读探索结果都不能直接当成可开发事实。
+
+默认入口先看 `workspace context`；选中 task 后再进入 `task context`。不要为了普通讨论提前读取完整包。
 
 轻量路径只减少空仪式，不跳过目标、范围、验证、交接和完成门禁。
 
@@ -26,17 +29,20 @@ description: Use when Codex 需要在 codex-workbench 中处理材料、discover
 ## 路由流程
 
 1. 普通讨论：不写状态。
-2. 只读探索：先读文件、日志或服务状态；需要沉淀时写 discovery。
-3. 原始材料：用 `material add` 记录来源和脱敏摘要。
-4. 系统观察、AI 推断、假设和问题：用 `discovery create`。
-5. AI-readable 需求草案：用 `intake create`。
-6. 用户确认需求边界：用 `intake confirm`。
-7. 正式执行项：用 `task create`。
-8. 风险画像：按 `docs/policies/risk-and-process.md` 判断 `impact_profile`、`risk_level`、`process_level` 和 `risk_triggers`。
-9. 风险变化：task 创建后发现影响面变化，用 `task impact-set`，并写清 `--reason`。
-10. 开工准入：用 `task prepare` 写入 working_scope、risk_triggers、implementation-ready；准备实现时也可补齐或修正 `impact_profile`。
-11. 阶段预演：用 `task check --to <stage>`。
-12. 阶段写入：用 `task set-stage --stage <stage>`。
+2. 只读探索：先读文件、日志、`service context` 或 `environments/` 相关 Markdown；需要沉淀时写 discovery。
+3. 明确授权的小型低风险修改：按风险公式确认影响清楚、可回滚、可验证后，走 `small-fix`；不自动创建正式 task。
+4. codex-workbench 自身维护：默认走 `maintenance_action / repo maintenance`，不强制创建 requirement/task；用户明确要纳入流程或长期跟踪时再创建。
+5. 原始材料：用 `material add` 记录来源和脱敏摘要。
+6. 系统观察、AI 推断、假设和问题：用 `discovery create`。
+7. AI-readable 需求草案：用 `intake create`。
+8. 用户确认需求边界：用 `intake confirm`。
+9. 正式执行项：用 `task create`。
+10. 工作面板：选择到 task 或创建 task 后，用 `task context <任务名或ID>` 看当前能做什么、缺什么、服务是否可接。对用户回复优先任务名称，ID 主要用于命令和消歧。
+11. 风险画像：按 `docs/policies/risk-and-process.md` 判断 `impact_profile`、`risk_level`、`process_level` 和 `risk_triggers`。
+12. 风险变化：task 创建后发现影响面变化，用 `task impact-set`，并写清 `--reason`。
+13. 开工准入：用 `task prepare` 写入 working_scope、risk_triggers、implementation-ready；准备实现时也可补齐或修正 `impact_profile`。
+14. 阶段预演：用 `task check --to <stage>`。
+15. 阶段写入：用 `task set-stage --stage <stage>`。
 
 ## 风险画像
 
@@ -44,7 +50,7 @@ description: Use when Codex 需要在 codex-workbench 中处理材料、discover
 
 - `action`：这次主要是代码、配置、数据、schema、部署、环境操作、文档还是分析？
 - `component_signals`：出现了哪些组件线索，例如 SQL、DB、Redis、配置、脚本或外部服务？
-- `environment`：目标环境是 local、sandbox、personal、shared、production 还是 unknown？
+- `environment`：目标环境是 local、test、sandbox、personal、shared、production 还是 unknown？
 - `data_effect`：是否只读、写测试数据、写真实数据、改 schema/migration 或破坏数据？
 - `external_effect`：是否会部署、通知、产生费用、影响安全或写外部系统？
 - `blast_radius`：只影响自己、单服务、多服务、共享用户、外部用户还是未知？
@@ -52,6 +58,8 @@ description: Use when Codex 需要在 codex-workbench 中处理材料、discover
 - `contract_change`：是否改变接口、schema、索引、消息格式、跨服务契约或验收口径？
 - `security_or_permission`：是否涉及权限、认证、安全、密钥、token、账号或隐私？
 - `verification_confidence`：是否能本地验证、需要联调、需要人工验收或路径不清？
+
+涉及测试环境、服务器、数据库、GitLab、网站、联调、账号密码或操作方式时，先查 `environments/`。该目录是自由 Markdown，不要求固定字段；信息缺失时不要猜。
 
 `component_signals` 不能单独决定高风险。一个本地测试 SQL 可以是 low/micro；生产库 DDL、真实数据批量 update/delete 必须 high/critical。
 
@@ -65,6 +73,8 @@ description: Use when Codex 需要在 codex-workbench 中处理材料、discover
 遇到 environment、data_effect、external_effect、blast_radius、reversibility、contract_change、security_or_permission 或 verification_confidence 为 unknown/unclear，且继续会写状态或改文件时，先暂停确认。
 
 高风险或 critical task 进入 `in_progress` 前必须有 `impact_profile`。如果当前 task 已创建但缺风险画像，先用 `task impact-set` 或在 `task prepare` 中补齐。
+
+已有 `impact_profile` 时，`task prepare` / `task impact-set` 可以局部覆盖：只传变化字段并合并旧值；新建画像仍必须有 `action`。
 
 ## task prepare
 
@@ -103,6 +113,12 @@ description: Use when Codex 需要在 codex-workbench 中处理材料、discover
 
 局部命名、注释、文案、小范围验证补充，且不改变目标和风险时，不自动升级为 change。
 
+## small-fix 边界
+
+`small-fix` 只适用于用户已明确授权、影响面清楚、低风险、可本地验证、可回滚的小型修改。它不能用来绕过风险公式，也不能用来替代产品任务流程。
+
+如果修改影响范围、验收、服务契约、数据、权限、部署、外部系统、共享环境、真实后果，或验证/回滚不清，先按 `risk-and-process.md` 升级为正式 task 或 ops_action。
+
 ## 不能做的事
 
 - 不为普通讨论创建 task。
@@ -110,6 +126,7 @@ description: Use when Codex 需要在 codex-workbench 中处理材料、discover
 - 不创建没有用户确认的 readable requirement 的正式 task。
 - 不预生成空 review、implementation、evidence 或 change。
 - 不用 action note 替代产品任务。
+- 不能用 small-fix 绕过风险公式、用户授权或必要验证。
 
 ## 常用命令
 
@@ -118,11 +135,13 @@ description: Use when Codex 需要在 codex-workbench 中处理材料、discover
 ```powershell
 $env:PYTHONPATH='src'
 python -m codex_workbench material add MAT-001 --title "..." --source "..." --summary "..." --received-at "..."
+python -m codex_workbench workspace context --workspace-root .
 python -m codex_workbench discovery create DISC-001 --title "..." --material-ref MAT-001 --updated-at "..."
 python -m codex_workbench intake create --title "..." --goal "..." --acceptance "..." --material-ref MAT-001
 python -m codex_workbench intake confirm REQ-20260702-001 --updated-at "..."
 python -m codex_workbench task create --requirement-id REQ-20260702-001 --title "..." --user-goal "..." --done "..." --next "..."
-python -m codex_workbench task impact-set REQ-20260702-001-TASK-20260702-001 --risk-level standard --process-level lightweight --impact-action code_change --impact-environment local --impact-data-effect none --impact-external-effect none --impact-blast-radius single_service --impact-reversibility git_revert --impact-contract-change false --impact-security-or-permission false --impact-verification-confidence local_testable --reason "读代码后确认只是本地改动。"
+python -m codex_workbench task context "任务名称"
+python -m codex_workbench task impact-set <TASK-ID> --reason "风险画像调整原因。" [changed fields...]
 python -m codex_workbench task prepare REQ-20260702-001-TASK-20260702-001 --working-scope "..." --risk-trigger "..."
 python -m codex_workbench task check REQ-20260702-001-TASK-20260702-001 --to in_progress
 python -m codex_workbench task set-stage REQ-20260702-001-TASK-20260702-001 --stage in_progress

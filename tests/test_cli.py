@@ -1,5 +1,11 @@
 from __future__ import annotations
 
+import importlib
+import json
+import os
+import pkgutil
+import subprocess
+import sys
 from pathlib import Path
 
 import yaml
@@ -59,6 +65,12 @@ def assert_markdown_template_hint(output: str) -> None:
     assert "task.yaml" not in hint_lines[-1]
 
 
+def _workspace_context_section(output: str, start: str, end: str) -> str:
+    start_index = output.index(start)
+    end_index = output.index(end, start_index)
+    return output[start_index:end_index]
+
+
 def create_task_via_cli(root: Path, extra_args: list[str] | None = None):
     return runner.invoke(
         app,
@@ -92,6 +104,51 @@ def test_version_command_prints_package_name() -> None:
     assert result.output.strip() == "codex-workbench 0.1.0"
 
 
+def test_cli_entrypoint_is_thin_and_registers_command_modules() -> None:
+    cli_path = Path(__file__).resolve().parents[1] / "src" / "codex_workbench" / "cli.py"
+    assert len(cli_path.read_text(encoding="utf-8").splitlines()) <= 220
+
+    command_package = importlib.import_module("codex_workbench.cli_commands")
+    discovered_modules = {
+        module.name
+        for module in pkgutil.iter_modules(command_package.__path__)
+        if not module.name.startswith("_")
+    }
+    assert {
+        "archive",
+        "common",
+        "evidence",
+        "index_doctor",
+        "materials",
+        "records",
+        "requirement_task",
+        "schema_workspace",
+        "services",
+    }.issubset(discovered_modules)
+
+    registered_groups = {group.name for group in app.registered_groups}
+    assert {
+        "schema",
+        "workspace",
+        "requirement",
+        "task",
+        "service",
+        "material",
+        "discovery",
+        "intake",
+        "evidence",
+        "validation",
+        "handoff",
+        "action",
+        "change",
+        "decision",
+        "suspicion",
+        "index",
+        "doctor",
+        "archive",
+    }.issubset(registered_groups)
+
+
 def test_schema_list_command_lists_core_models() -> None:
     result = runner.invoke(app, ["schema", "list"])
 
@@ -100,6 +157,363 @@ def test_schema_list_command_lists_core_models() -> None:
     assert "WorkspaceState" in result.output
     assert "ChangeRecordState" in result.output
     assert "SuspicionState" in result.output
+
+
+def test_workspace_context_reports_baseline_without_generating_views(tmp_path: Path) -> None:
+    create_workspace(tmp_path)
+    current_path = tmp_path / "CURRENT.md"
+    before_current = current_path.read_text(encoding="utf-8")
+
+    result = runner.invoke(app, ["workspace", "context", "--workspace-root", str(tmp_path)])
+
+    assert result.exit_code == 0
+    assert "# Workspace Context" in result.output
+    assert "不是状态真源；任务事实以 task context、任务包和命令输出为准" in result.output
+    assert "工作区状态：baseline" in result.output
+    assert "活动任务：none" in result.output
+    assert "推荐入口：chat_or_explore" in result.output
+    assert "状态写入：默认不写；需要写状态时必须有明确场景和授权，并且只能走 CLI" in result.output
+    assert "不生成文件；需要刷新视图时再运行 index generate" in result.output
+    assert current_path.read_text(encoding="utf-8") == before_current
+    assert not (tmp_path / "docs" / "generated" / "index.md").exists()
+    assert not (tmp_path / "docs" / "generated" / "recovery.md").exists()
+
+
+def test_workspace_context_can_embed_task_context_by_title(tmp_path: Path) -> None:
+    create_workspace(tmp_path)
+    write_requirement(tmp_path)
+    service_path = tmp_path / "repos" / "web"
+    service_path.mkdir(parents=True)
+    (service_path / "package.json").write_text('{"scripts":{"test":"vitest"}}\n', encoding="utf-8")
+    runner.invoke(
+        app,
+        [
+            "service",
+            "add",
+            "web-dashboard",
+            "--path",
+            str(service_path),
+            "--workspace-root",
+            str(tmp_path),
+        ],
+    )
+    create_task_via_cli(tmp_path, ["--service-ref", "web-dashboard"])
+
+    result = runner.invoke(
+        app,
+        ["workspace", "context", "--task", "实现任务 CLI", "--workspace-root", str(tmp_path)],
+    )
+
+    assert result.exit_code == 0
+    assert "# Workspace Context" in result.output
+    assert "工作区状态：active" in result.output
+    assert "活动任务：1" in result.output
+    assert "状态写入：默认不写；需要写状态时必须有明确场景和授权，并且只能走 CLI" in result.output
+    assert "- 实现任务 CLI [draft]：运行测试。" in result.output
+    assert "## 当前任务" in result.output
+    assert "当前任务：实现任务 CLI" in result.output
+    assert "服务现场" in result.output
+    assert f"路径：{service_path}" in result.output
+    assert "REQ-20260702-001-TASK" not in result.output
+
+
+def test_workspace_context_can_embed_service_context(tmp_path: Path) -> None:
+    create_workspace(tmp_path)
+    service_path = tmp_path / "repos" / "web"
+    service_path.mkdir(parents=True)
+    (service_path / "package.json").write_text('{"scripts":{"test":"vitest"}}\n', encoding="utf-8")
+    runner.invoke(
+        app,
+        [
+            "service",
+            "add",
+            "web-dashboard",
+            "--path",
+            str(service_path),
+            "--purpose",
+            "前端服务。",
+            "--workspace-root",
+            str(tmp_path),
+        ],
+    )
+    current_path = tmp_path / "CURRENT.md"
+    index_path = tmp_path / "docs" / "generated" / "index.md"
+    recovery_path = tmp_path / "docs" / "generated" / "recovery.md"
+    before_current = current_path.read_text(encoding="utf-8")
+    before_index = index_path.read_text(encoding="utf-8")
+    before_recovery = recovery_path.read_text(encoding="utf-8")
+
+    result = runner.invoke(
+        app,
+        ["workspace", "context", "--service", "web-dashboard", "--workspace-root", str(tmp_path)],
+    )
+
+    assert result.exit_code == 0
+    assert "## 当前服务" in result.output
+    assert "服务：web-dashboard" in result.output
+    assert "用途：前端服务。" in result.output
+    assert f"路径：{service_path}" in result.output
+    assert "入口候选：package.json" in result.output
+    assert current_path.read_text(encoding="utf-8") == before_current
+    assert index_path.read_text(encoding="utf-8") == before_index
+    assert recovery_path.read_text(encoding="utf-8") == before_recovery
+
+
+def test_workspace_context_lists_lightweight_service_overview(tmp_path: Path) -> None:
+    create_workspace(tmp_path)
+    service_path = tmp_path / "repos" / "web"
+    service_path.mkdir(parents=True)
+    (service_path / "package.json").write_text('{"scripts":{"test":"vitest"}}\n', encoding="utf-8")
+    runner.invoke(
+        app,
+        [
+            "service",
+            "add",
+            "web-dashboard",
+            "--path",
+            str(service_path),
+            "--workspace-root",
+            str(tmp_path),
+        ],
+    )
+
+    result = runner.invoke(app, ["workspace", "context", "--workspace-root", str(tmp_path)])
+
+    assert result.exit_code == 0
+    assert "## 服务概览" in result.output
+    assert "- web-dashboard：registry_only | 路径：" in result.output
+    assert "任务引用：0" in result.output
+    assert "深入：`workspace context --service web-dashboard` 或 `service context web-dashboard`" in result.output
+    assert "non_empty_dir" not in result.output
+    assert "入口：package.json" not in result.output
+    assert "## 当前服务" not in result.output
+    assert f"路径：{service_path}" not in result.output
+
+
+def test_workspace_context_deduplicates_service_refs_from_many_tasks(tmp_path: Path) -> None:
+    create_workspace(tmp_path)
+    write_requirement(tmp_path)
+    service_path = tmp_path / "repos" / "web"
+    service_path.mkdir(parents=True)
+    runner.invoke(
+        app,
+        [
+            "service",
+            "add",
+            "web-dashboard",
+            "--path",
+            str(service_path),
+            "--workspace-root",
+            str(tmp_path),
+        ],
+    )
+    requirement_yaml = tmp_path / "docs" / "active" / "REQ-20260702-001" / "requirement.yaml"
+    requirement = yaml.safe_load(requirement_yaml.read_text(encoding="utf-8"))
+    task_ids = [f"REQ-20260702-001-TASK-20260702-{index:03d}" for index in range(1, 6)]
+    requirement["task_refs"] = task_ids
+    requirement_yaml.write_text(yaml.safe_dump(requirement, allow_unicode=True, sort_keys=False), encoding="utf-8")
+    for index, task_id in enumerate(task_ids, start=1):
+        task_dir = tmp_path / "docs" / "active" / task_id
+        task_dir.mkdir(parents=True)
+        (task_dir / "task.yaml").write_text(
+            yaml.safe_dump(
+                {
+                    "schema_version": "0.1",
+                    "id": task_id,
+                    "requirement_id": "REQ-20260702-001",
+                    "title": f"任务 {index}",
+                    "created_at": "2026-07-01T09:00:00+08:00",
+                    "updated_at": f"2026-07-01T1{index}:00:00+08:00",
+                    "stage": "in_progress",
+                    "next_step": "继续。",
+                    "service_refs": ["web-dashboard", "web-dashboard"],
+                    "validation": {"status": "not_started"},
+                },
+                allow_unicode=True,
+                sort_keys=False,
+            ),
+            encoding="utf-8",
+        )
+
+    result = runner.invoke(app, ["workspace", "context", "--workspace-root", str(tmp_path)])
+
+    assert result.exit_code == 0
+    assert result.output.count("- web-dashboard：") == 1
+    assert "任务引用：5" in result.output
+
+
+def test_workspace_context_prioritizes_unknown_active_service_refs(tmp_path: Path) -> None:
+    create_workspace(tmp_path)
+    write_requirement(tmp_path)
+    for index in range(1, 7):
+        service_path = tmp_path / "repos" / f"service-{index}"
+        service_path.mkdir(parents=True)
+        runner.invoke(
+            app,
+            [
+                "service",
+                "add",
+                f"service-{index}",
+                "--path",
+                str(service_path),
+                "--workspace-root",
+                str(tmp_path),
+            ],
+        )
+    task_dir = tmp_path / "docs" / "active" / "REQ-20260702-001-TASK-20260702-001"
+    task_dir.mkdir(parents=True)
+    (task_dir / "task.yaml").write_text(
+        yaml.safe_dump(
+            {
+                "schema_version": "0.1",
+                "id": "REQ-20260702-001-TASK-20260702-001",
+                "requirement_id": "REQ-20260702-001",
+                "title": "调用缺失服务",
+                "created_at": "2026-07-01T09:00:00+08:00",
+                "updated_at": "2026-07-01T10:00:00+08:00",
+                "stage": "in_progress",
+                "next_step": "确认服务登记。",
+                "service_refs": ["missing-active-service"],
+                "validation": {"status": "not_started"},
+            },
+            allow_unicode=True,
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+
+    result = runner.invoke(app, ["workspace", "context", "--workspace-root", str(tmp_path)])
+    checked_result = runner.invoke(
+        app,
+        ["workspace", "context", "--check-services", "--workspace-root", str(tmp_path)],
+    )
+
+    assert result.exit_code == 0
+    assert checked_result.exit_code == 0
+    service_overview = _workspace_context_section(result.output, "## 服务概览", "## 任务焦点")
+    checked_service_overview = _workspace_context_section(checked_result.output, "## 服务概览", "## 任务焦点")
+    assert "- missing-active-service：missing_registry | 任务引用：1 | 阻断：unknown_service_ref" in service_overview
+    assert "- missing-active-service：missing_registry | 任务引用：1 | 阻断：unknown_service_ref" in checked_service_overview
+
+
+def test_workspace_context_can_opt_into_service_checks(tmp_path: Path) -> None:
+    create_workspace(tmp_path)
+    service_path = tmp_path / "repos" / "web"
+    service_path.mkdir(parents=True)
+    (service_path / "package.json").write_text('{"scripts":{"test":"vitest"}}\n', encoding="utf-8")
+    runner.invoke(
+        app,
+        [
+            "service",
+            "add",
+            "web-dashboard",
+            "--path",
+            str(service_path),
+            "--workspace-root",
+            str(tmp_path),
+        ],
+    )
+
+    result = runner.invoke(app, ["workspace", "context", "--check-services", "--workspace-root", str(tmp_path)])
+
+    assert result.exit_code == 0
+    assert "## 服务概览" in result.output
+    assert "- web-dashboard：non_empty_dir | Git：not_git | 入口：package.json | 任务引用：0 | 提醒：not_git" in result.output
+
+
+def test_workspace_context_groups_waiting_feedback_without_treating_it_as_blocked(tmp_path: Path) -> None:
+    create_workspace(tmp_path)
+    write_requirement(tmp_path)
+    requirement_yaml = tmp_path / "docs" / "active" / "REQ-20260702-001" / "requirement.yaml"
+    requirement = yaml.safe_load(requirement_yaml.read_text(encoding="utf-8"))
+    task_ids = [
+        "REQ-20260702-001-TASK-20260702-001",
+        "REQ-20260702-001-TASK-20260702-002",
+        "REQ-20260702-001-TASK-20260702-003",
+        "REQ-20260702-001-TASK-20260702-004",
+    ]
+    requirement["task_refs"] = task_ids
+    requirement_yaml.write_text(yaml.safe_dump(requirement, allow_unicode=True, sort_keys=False), encoding="utf-8")
+    task_payloads = [
+        {
+            "id": task_ids[0],
+            "title": "继续实现入口",
+            "stage": "in_progress",
+            "next_step": "补充服务概览。",
+            "updated_at": "2026-07-01T12:00:00+08:00",
+        },
+        {
+            "id": task_ids[1],
+            "title": "发布到测试环境",
+            "stage": "verification_pending",
+            "next_step": "等待用户测试。",
+            "handoff": {"status": "waiting_user_validation", "note": "已交给用户测试。"},
+            "updated_at": "2026-07-01T11:00:00+08:00",
+        },
+        {
+            "id": task_ids[2],
+            "title": "接入 GitLab webhook",
+            "stage": "blocked",
+            "next_step": "等待回调地址。",
+            "blocked": {
+                "reason": "缺少回调地址。",
+                "blocked_by": "user",
+                "resume_condition": "用户提供回调地址。",
+                "resume_stage": "ready",
+            },
+            "updated_at": "2026-07-01T10:00:00+08:00",
+        },
+        {
+            "id": task_ids[3],
+            "title": "草稿整理",
+            "stage": "draft",
+            "next_step": "确认是否纳入正式任务。",
+            "updated_at": "2026-07-01T09:00:00+08:00",
+        },
+    ]
+    for payload in task_payloads:
+        payload = {
+            "schema_version": "0.1",
+            "requirement_id": "REQ-20260702-001",
+            "created_at": payload["updated_at"],
+            "validation": {"status": "not_started"},
+            **payload,
+        }
+        task_yaml = tmp_path / "docs" / "active" / payload["id"] / "task.yaml"
+        task_yaml.parent.mkdir(parents=True)
+        task_yaml.write_text(yaml.safe_dump(payload, allow_unicode=True, sort_keys=False), encoding="utf-8")
+
+    result = runner.invoke(app, ["workspace", "context", "--workspace-root", str(tmp_path)])
+
+    assert result.exit_code == 0
+    assert "## 任务焦点" in result.output
+    assert "可续接：" in result.output
+    assert "- 继续实现入口 [in_progress]：补充服务概览。" in result.output
+    assert "等待反馈：" in result.output
+    assert "- 发布到测试环境 [verification_pending]：等待用户测试。" in result.output
+    assert "阻塞：" in result.output
+    assert "- 接入 GitLab webhook [blocked]：缺少回调地址。" in result.output
+    assert "需确认：" in result.output
+    assert "草稿整理 [draft]" not in _workspace_context_section(result.output, "等待反馈：", "阻塞：")
+    assert "草稿整理 [draft]" not in _workspace_context_section(result.output, "需确认：", "## 冲突")
+    assert "REQ-20260702-001-TASK" not in result.output
+
+
+def test_workspace_context_subprocess_works_with_documented_pythonpath(tmp_path: Path) -> None:
+    create_workspace(tmp_path)
+    project_root = Path(__file__).resolve().parents[1]
+    completed = subprocess.run(
+        [sys.executable, "-m", "codex_workbench", "workspace", "context", "--workspace-root", str(tmp_path)],
+        cwd=project_root,
+        env={**os.environ, "PYTHONPATH": "src"},
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert completed.returncode == 0, completed.stderr
+    assert "# Workspace Context" in completed.stdout
+    assert "工作区状态：baseline" in completed.stdout
 
 
 def test_index_generate_command_writes_views_and_check_detects_stale(tmp_path: Path) -> None:
@@ -446,6 +860,45 @@ def test_task_create_writes_impact_profile(tmp_path: Path) -> None:
     assert task_yaml["impact_profile"]["verification_confidence"] == "local_testable"
 
 
+def test_task_create_accepts_test_impact_environment(tmp_path: Path) -> None:
+    create_workspace(tmp_path)
+    write_requirement(tmp_path)
+
+    result = create_task_via_cli(
+        tmp_path,
+        [
+            "--impact-action",
+            "code_change",
+            "--impact-component",
+            "frontend",
+            "--impact-environment",
+            "test",
+            "--impact-data-effect",
+            "none",
+            "--impact-external-effect",
+            "none",
+            "--impact-blast-radius",
+            "single_service",
+            "--impact-reversibility",
+            "git_revert",
+            "--impact-contract-change",
+            "false",
+            "--impact-security-or-permission",
+            "false",
+            "--impact-verification-confidence",
+            "local_testable",
+        ],
+    )
+
+    assert result.exit_code == 0, combined_output(result)
+    task_yaml = yaml.safe_load(
+        (tmp_path / "docs" / "active" / "REQ-20260702-001-TASK-20260702-001" / "task.yaml").read_text(
+            encoding="utf-8"
+        )
+    )
+    assert task_yaml["impact_profile"]["environment"] == "test"
+
+
 def test_task_impact_set_updates_profile_and_records_reason(tmp_path: Path) -> None:
     create_workspace(tmp_path)
     write_requirement(tmp_path)
@@ -494,6 +947,7 @@ def test_task_impact_set_updates_profile_and_records_reason(tmp_path: Path) -> N
     task_yaml = tmp_path / "docs" / "active" / "REQ-20260702-001-TASK-20260702-001" / "task.yaml"
     task = yaml.safe_load(task_yaml.read_text(encoding="utf-8"))
     current_text = (tmp_path / "CURRENT.md").read_text(encoding="utf-8")
+    index_text = (tmp_path / "docs" / "generated" / "index.md").read_text(encoding="utf-8")
 
     assert result.exit_code == 0, combined_output(result)
     assert task["risk_level"] == "standard"
@@ -502,8 +956,11 @@ def test_task_impact_set_updates_profile_and_records_reason(tmp_path: Path) -> N
     assert task["impact_profile"]["component_signals"] == ["sql"]
     assert task["risk_triggers"] == ["发现真实数据写入时暂停确认。"]
     assert task["risk_assessment_notes"] == ["读代码后确认只是本地 SQL 查询调整。"]
-    assert "standard/lightweight" in current_text
-    assert "code_change local data=none" in current_text
+    assert "实现任务 CLI" in current_text
+    assert "standard/lightweight" not in current_text
+    assert "code_change local data=none" not in current_text
+    assert "standard/lightweight" in index_text
+    assert "code_change local data=none" in index_text
 
 
 def test_task_impact_set_requires_reason(tmp_path: Path) -> None:
@@ -1075,6 +1532,75 @@ def test_task_prepare_can_update_impact_profile(tmp_path: Path) -> None:
     assert task_yaml["risk_assessment_notes"] == ["准备实现时确认只影响本地配置。"]
 
 
+def test_task_prepare_merges_partial_impact_profile_update(tmp_path: Path) -> None:
+    create_workspace(tmp_path)
+    write_requirement(tmp_path)
+    created = create_task_via_cli(
+        tmp_path,
+        [
+            "--impact-action",
+            "analysis",
+            "--impact-component",
+            "api",
+            "--impact-environment",
+            "test",
+            "--impact-data-effect",
+            "read_only",
+            "--impact-external-effect",
+            "read_only",
+            "--impact-blast-radius",
+            "single_service",
+            "--impact-reversibility",
+            "easy_manual",
+            "--impact-contract-change",
+            "unknown",
+            "--impact-security-or-permission",
+            "false",
+            "--impact-verification-confidence",
+            "integration_required",
+        ],
+    )
+    assert created.exit_code == 0, combined_output(created)
+
+    prepare = runner.invoke(
+        app,
+        [
+            "task",
+            "prepare",
+            "REQ-20260702-001-TASK-20260702-001",
+            "--working-scope",
+            "projects/customer-api",
+            "--impact-contract-change",
+            "false",
+            "--impact-reason",
+            "准备实现时确认不改变接口契约。",
+            "--workspace-root",
+            str(tmp_path),
+        ],
+    )
+
+    task_yaml = yaml.safe_load(
+        (tmp_path / "docs" / "active" / "REQ-20260702-001-TASK-20260702-001" / "task.yaml").read_text(
+            encoding="utf-8"
+        )
+    )
+
+    assert prepare.exit_code == 0, combined_output(prepare)
+    assert task_yaml["impact_profile"] == {
+        "action": "analysis",
+        "component_signals": ["api"],
+        "environment": "test",
+        "data_effect": "read_only",
+        "external_effect": "read_only",
+        "blast_radius": "single_service",
+        "reversibility": "easy_manual",
+        "contract_change": False,
+        "security_or_permission": False,
+        "verification_confidence": "integration_required",
+    }
+    assert task_yaml["risk_assessment_notes"] == ["准备实现时确认不改变接口契约。"]
+
+
 def test_task_review_and_implementation_create_use_package_local_docs(
     tmp_path: Path,
 ) -> None:
@@ -1279,6 +1805,60 @@ def test_task_prepare_high_risk_requires_review_ref_and_risk_acceptance(
     assert "missing_high_risk_acceptance" in output
     assert full_prepare.exit_code == 0
     assert allowed.exit_code == 0
+
+
+def test_high_risk_in_progress_requires_impact_profile_even_when_other_facts_exist(
+    tmp_path: Path,
+) -> None:
+    create_workspace(tmp_path)
+    write_requirement(tmp_path)
+    create_task_via_cli(tmp_path, ["--risk-level", "high"])
+    prepare = runner.invoke(
+        app,
+        [
+            "task",
+            "prepare",
+            "REQ-20260702-001-TASK-20260702-001",
+            "--working-scope",
+            "src/codex_workbench/cli.py",
+            "--implementation-ref",
+            "implementation.md",
+            "--review-ref",
+            "review.md",
+            "--risk-acceptance-note",
+            "用户确认高风险边界。",
+            "--risk-trigger",
+            "触发真实数据写入时暂停确认。",
+            "--risk-level",
+            "high",
+            "--process-level",
+            "high",
+            "--workspace-root",
+            str(tmp_path),
+        ],
+    )
+
+    blocked = runner.invoke(
+        app,
+        [
+            "task",
+            "set-stage",
+            "REQ-20260702-001-TASK-20260702-001",
+            "--stage",
+            "in_progress",
+            "--workspace-root",
+            str(tmp_path),
+        ],
+    )
+
+    assert prepare.exit_code == 0
+    output = combined_output(blocked)
+    assert blocked.exit_code != 0
+    assert "missing_high_risk_impact_profile" in output
+    assert "missing_high_risk_review" not in output
+    assert "missing_high_risk_implementation_ref" not in output
+    assert "missing_high_risk_triggers" not in output
+    assert "missing_high_risk_acceptance" not in output
 
 
 def test_task_set_stage_in_progress_rejects_unknown_service_ref(tmp_path: Path) -> None:
@@ -1750,6 +2330,139 @@ def test_validation_apply_rejects_missing_evidence_command(tmp_path: Path) -> No
     assert "missing_evidence_record: EV-MISSING" in combined_output(result)
 
 
+def test_validation_apply_rejects_status_mismatch(tmp_path: Path) -> None:
+    create_workspace(tmp_path)
+    write_requirement(tmp_path)
+    create_task_via_cli(tmp_path)
+    runner.invoke(
+        app,
+        [
+            "evidence",
+            "create",
+            "EV-REQ-20260702-001-TASK-20260702-001",
+            "--task-id",
+            "REQ-20260702-001-TASK-20260702-001",
+            "--conclusion",
+            "failed",
+            "--key-output",
+            "pytest failed",
+            "--workspace-root",
+            str(tmp_path),
+            "--updated-at",
+            "2026-07-01",
+        ],
+    )
+
+    result = runner.invoke(
+        app,
+        [
+            "validation",
+            "apply",
+            "REQ-20260702-001-TASK-20260702-001",
+            "--evidence-id",
+            "EV-REQ-20260702-001-TASK-20260702-001",
+            "--status",
+            "passed",
+            "--workspace-root",
+            str(tmp_path),
+        ],
+    )
+
+    assert result.exit_code != 0
+    assert "validation_status_mismatch" in combined_output(result)
+
+
+def test_validation_apply_rejects_passed_evidence_with_unverified_items(tmp_path: Path) -> None:
+    create_workspace(tmp_path)
+    write_requirement(tmp_path)
+    create_task_via_cli(tmp_path)
+    runner.invoke(
+        app,
+        [
+            "evidence",
+            "create",
+            "EV-REQ-20260702-001-TASK-20260702-001",
+            "--task-id",
+            "REQ-20260702-001-TASK-20260702-001",
+            "--conclusion",
+            "passed",
+            "--key-output",
+            "pytest passed",
+            "--unverified-item",
+            "用户验收未完成。",
+            "--workspace-root",
+            str(tmp_path),
+            "--updated-at",
+            "2026-07-01",
+        ],
+    )
+
+    result = runner.invoke(
+        app,
+        [
+            "validation",
+            "apply",
+            "REQ-20260702-001-TASK-20260702-001",
+            "--evidence-id",
+            "EV-REQ-20260702-001-TASK-20260702-001",
+            "--status",
+            "passed",
+            "--workspace-root",
+            str(tmp_path),
+        ],
+    )
+
+    assert result.exit_code != 0
+    assert "evidence_has_unverified_items" in combined_output(result)
+
+
+def test_done_rechecks_evidence_conclusion_even_if_task_validation_claims_passed(tmp_path: Path) -> None:
+    create_workspace(tmp_path)
+    write_requirement(tmp_path)
+    create_task_via_cli(tmp_path)
+    evidence_yaml = tmp_path / "docs" / "active" / "REQ-20260702-001-TASK-20260702-001" / "evidence.yaml"
+    evidence_yaml.write_text(
+        yaml.safe_dump(
+            {
+                "schema_version": "0.1",
+                "id": "EV-REQ-20260702-001-TASK-20260702-001",
+                "task_id": "REQ-20260702-001-TASK-20260702-001",
+                "conclusion": "failed",
+                "key_outputs": ["pytest failed"],
+                "unverified_items": [],
+            },
+            allow_unicode=True,
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+    task_yaml = tmp_path / "docs" / "active" / "REQ-20260702-001-TASK-20260702-001" / "task.yaml"
+    task = yaml.safe_load(task_yaml.read_text(encoding="utf-8"))
+    task["validation"] = {
+        "status": "passed",
+        "evidence_ref": "EV-REQ-20260702-001-TASK-20260702-001",
+        "unverified_items": [],
+    }
+    task["handoff"] = {"status": "accepted", "note": "用户验收通过。"}
+    task_yaml.write_text(yaml.safe_dump(task, allow_unicode=True, sort_keys=False), encoding="utf-8")
+
+    result = runner.invoke(
+        app,
+        [
+            "task",
+            "set-stage",
+            "REQ-20260702-001-TASK-20260702-001",
+            "--stage",
+            "done",
+            "--workspace-root",
+            str(tmp_path),
+        ],
+    )
+
+    assert result.exit_code != 0
+    assert "evidence_not_passed: failed" in combined_output(result)
+
+
 def test_validation_apply_requires_explicit_status(tmp_path: Path) -> None:
     create_workspace(tmp_path)
     write_requirement(tmp_path)
@@ -2016,6 +2729,529 @@ def test_handoff_waiting_blocks_done_command(tmp_path: Path) -> None:
     assert "handoff_waiting" in combined_output(result)
 
 
+def test_task_context_resolves_task_by_title_and_uses_names(tmp_path: Path) -> None:
+    create_workspace(tmp_path)
+    write_requirement(tmp_path)
+    service_path = tmp_path / "repos" / "empty-web"
+    service_path.mkdir(parents=True)
+    runner.invoke(
+        app,
+        [
+            "service",
+            "add",
+            "web-dashboard",
+            "--path",
+            str(service_path),
+            "--workspace-root",
+            str(tmp_path),
+        ],
+    )
+    create_task_via_cli(tmp_path, ["--service-ref", "web-dashboard"])
+
+    result = runner.invoke(
+        app,
+        ["task", "context", "实现任务 CLI", "--workspace-root", str(tmp_path)],
+    )
+
+    assert result.exit_code == 0
+    assert "当前任务：实现任务 CLI" in result.output
+    assert "所属需求：构建轻量 Workbench" in result.output
+    assert "REQ-20260702-001-TASK" not in result.output
+    assert "可以改代码：不可以" in result.output
+    assert "ability code_change=" not in result.output
+    assert "service web-dashboard" not in result.output
+    assert "missing_implementation_ready" in result.output
+    assert "服务现场" in result.output
+    assert "web-dashboard：empty_dir" in result.output
+    assert f"路径：{service_path}" in result.output
+    assert "阻断：empty_service_dir" in result.output
+    assert "提醒：not_git,no_entry_candidates" in result.output
+    assert "empty_service_dir" in result.output
+    assert "no_entry_candidates" in result.output
+    assert "下一步建议" in result.output
+
+
+def test_task_context_text_warns_when_service_has_existing_git_changes(tmp_path: Path) -> None:
+    create_workspace(tmp_path)
+    write_requirement(tmp_path)
+    service_path = tmp_path / "repos" / "web"
+    service_path.mkdir(parents=True)
+    subprocess.run(["git", "init"], cwd=service_path, check=True, capture_output=True, text=True)
+    (service_path / "package.json").write_text('{"scripts":{"test":"vitest"}}\n', encoding="utf-8")
+    runner.invoke(
+        app,
+        [
+            "service",
+            "add",
+            "web-dashboard",
+            "--path",
+            str(service_path),
+            "--workspace-root",
+            str(tmp_path),
+        ],
+    )
+    create_task_via_cli(tmp_path, ["--service-ref", "web-dashboard"])
+
+    result = runner.invoke(
+        app,
+        ["task", "context", "实现任务 CLI", "--workspace-root", str(tmp_path)],
+    )
+
+    assert result.exit_code == 0
+    assert "web-dashboard：non_empty_dir | Git：git" in result.output
+    assert f"路径：{service_path}" in result.output
+    assert "Git 范围：git_status=service_path,service_relpath=." in result.output
+    assert "已有变更：dirty=0 untracked=1" in result.output
+
+
+def test_task_context_json_reports_ability_matrix_and_service_context(tmp_path: Path) -> None:
+    create_workspace(tmp_path)
+    write_requirement(tmp_path)
+    service_path = tmp_path / "repos" / "web-dashboard"
+    service_path.mkdir(parents=True)
+    (service_path / "package.json").write_text('{"scripts":{"test":"vitest"}}\n', encoding="utf-8")
+    (service_path / "src").mkdir()
+    runner.invoke(
+        app,
+        [
+            "service",
+            "add",
+            "web-dashboard",
+            "--path",
+            str(service_path),
+            "--workspace-root",
+            str(tmp_path),
+        ],
+    )
+    create_task_via_cli(tmp_path, ["--service-ref", "web-dashboard"])
+    runner.invoke(
+        app,
+        [
+            "task",
+            "prepare",
+            "REQ-20260702-001-TASK-20260702-001",
+            "--working-scope",
+            "实现 web-dashboard 页面修复。",
+            "--workspace-root",
+            str(tmp_path),
+        ],
+    )
+    runner.invoke(
+        app,
+        [
+            "task",
+            "set-stage",
+            "REQ-20260702-001-TASK-20260702-001",
+            "--stage",
+            "in_progress",
+            "--workspace-root",
+            str(tmp_path),
+        ],
+    )
+
+    result = runner.invoke(
+        app,
+        ["task", "context", "实现任务 CLI", "--format", "json", "--workspace-root", str(tmp_path)],
+    )
+
+    assert result.exit_code == 0
+    payload = json.loads(result.output)
+    assert payload["task"]["title"] == "实现任务 CLI"
+    assert payload["requirement"]["title"] == "构建轻量 Workbench"
+    assert payload["ability_matrix"]["read_only"]["state"] == "allowed"
+    assert payload["ability_matrix"]["write_state"]["state"] == "cli_only"
+    assert payload["ability_matrix"]["code_change"]["state"] == "allowed"
+    assert payload["ability_matrix"]["claim_done"]["state"] == "blocked"
+    assert "validation_not_passed" in payload["ability_matrix"]["claim_done"]["gaps"]
+    assert payload["services"][0]["name"] == "web-dashboard"
+    assert payload["services"][0]["path_state"] == "non_empty_dir"
+    assert payload["services"][0]["visible_file_count"] == 1
+    assert payload["services"][0]["visible_file_count_limit_reached"] is False
+    assert "git_status_scope" in payload["services"][0]
+    assert "dirty_count" in payload["services"][0]
+    assert "untracked_count" in payload["services"][0]
+    assert payload["services"][0]["hard_gaps"] == []
+    assert payload["services"][0]["warnings"] == ["not_git"]
+    assert "package.json" in payload["services"][0]["entry_candidates"]
+
+
+def test_task_context_deduplicates_and_limits_batch_service_refs(tmp_path: Path) -> None:
+    create_workspace(tmp_path)
+    write_requirement(tmp_path)
+    service_refs: list[str] = []
+    for index in range(1, 8):
+        service_name = f"service-{index}"
+        service_path = tmp_path / "repos" / service_name
+        service_path.mkdir(parents=True)
+        (service_path / "package.json").write_text('{"scripts":{"test":"vitest"}}\n', encoding="utf-8")
+        service_refs.extend(["--service-ref", service_name])
+        runner.invoke(
+            app,
+            [
+                "service",
+                "add",
+                service_name,
+                "--path",
+                str(service_path),
+                "--workspace-root",
+                str(tmp_path),
+            ],
+        )
+    create_task_via_cli(tmp_path, ["--service-ref", "service-1", *service_refs])
+
+    result = runner.invoke(
+        app,
+        ["task", "context", "实现任务 CLI", "--workspace-root", str(tmp_path)],
+    )
+
+    assert result.exit_code == 0
+    assert "关联服务：service-1,service-2,service-3,service-4,service-5（共 7，已检查 5，未检查 2）" in result.output
+    assert "service-1：non_empty_dir" in result.output
+    assert "service-5：non_empty_dir" in result.output
+    assert "service-6：non_empty_dir" not in result.output
+    assert "还有 2 个关联服务未展开：service-6,service-7" in result.output
+    assert "提醒：service_check_limited" in result.output
+
+
+def test_task_context_service_limit_blocks_code_change_until_explicitly_expanded(tmp_path: Path) -> None:
+    create_workspace(tmp_path)
+    write_requirement(tmp_path)
+    service_refs: list[str] = []
+    for index in range(1, 8):
+        service_name = f"service-{index}"
+        service_path = tmp_path / "repos" / service_name
+        service_path.mkdir(parents=True)
+        (service_path / "package.json").write_text('{"scripts":{"test":"vitest"}}\n', encoding="utf-8")
+        service_refs.extend(["--service-ref", service_name])
+        runner.invoke(
+            app,
+            [
+                "service",
+                "add",
+                service_name,
+                "--path",
+                str(service_path),
+                "--workspace-root",
+                str(tmp_path),
+            ],
+        )
+    create_task_via_cli(tmp_path, service_refs)
+    runner.invoke(
+        app,
+        [
+            "task",
+            "prepare",
+            "REQ-20260702-001-TASK-20260702-001",
+            "--working-scope",
+            "修改多服务任务。",
+            "--workspace-root",
+            str(tmp_path),
+        ],
+    )
+    runner.invoke(
+        app,
+        [
+            "task",
+            "set-stage",
+            "REQ-20260702-001-TASK-20260702-001",
+            "--stage",
+            "in_progress",
+            "--workspace-root",
+            str(tmp_path),
+        ],
+    )
+
+    default_result = runner.invoke(
+        app,
+        ["task", "context", "实现任务 CLI", "--format", "json", "--workspace-root", str(tmp_path)],
+    )
+    expanded_result = runner.invoke(
+        app,
+        [
+            "task",
+            "context",
+            "实现任务 CLI",
+            "--format",
+            "json",
+            "--service-check-limit",
+            "10",
+            "--workspace-root",
+            str(tmp_path),
+        ],
+    )
+
+    assert default_result.exit_code == 0
+    default_context = json.loads(default_result.output)
+    assert default_context["ability_matrix"]["code_change"]["state"] == "blocked"
+    assert "service_check_limited" in default_context["ability_matrix"]["code_change"]["gaps"]
+    assert default_context["unchecked_service_refs"] == ["service-6", "service-7"]
+    assert expanded_result.exit_code == 0
+    expanded_context = json.loads(expanded_result.output)
+    assert expanded_context["ability_matrix"]["code_change"]["state"] == "allowed"
+    assert expanded_context["unchecked_service_refs"] == []
+
+
+def test_task_context_does_not_expand_evidence_body_or_write_files(tmp_path: Path) -> None:
+    create_workspace(tmp_path)
+    write_requirement(tmp_path)
+    create_task_via_cli(tmp_path)
+    evidence_yaml = tmp_path / "docs" / "active" / "REQ-20260702-001-TASK-20260702-001" / "evidence.yaml"
+    evidence_payload = {
+        "schema_version": "0.1",
+        "id": "EV-REQ-20260702-001-TASK-20260702-001",
+        "task_id": "REQ-20260702-001-TASK-20260702-001",
+        "conclusion": "passed",
+        "key_outputs": ["full evidence body with token=abc123 must stay out"],
+        "unverified_items": [],
+    }
+    evidence_yaml.write_text(
+        yaml.safe_dump(evidence_payload, allow_unicode=True, sort_keys=False),
+        encoding="utf-8",
+    )
+    task_yaml = tmp_path / "docs" / "active" / "REQ-20260702-001-TASK-20260702-001" / "task.yaml"
+    before_task = task_yaml.read_text(encoding="utf-8")
+    before_evidence = evidence_yaml.read_text(encoding="utf-8")
+
+    text_result = runner.invoke(
+        app,
+        ["task", "context", "实现任务 CLI", "--workspace-root", str(tmp_path)],
+    )
+    json_result = runner.invoke(
+        app,
+        ["task", "context", "实现任务 CLI", "--format", "json", "--workspace-root", str(tmp_path)],
+    )
+
+    assert text_result.exit_code == 0
+    assert json_result.exit_code == 0
+    assert "token=abc123" not in text_result.output
+    assert "full evidence body" not in text_result.output
+    assert "token=abc123" not in json_result.output
+    assert "full evidence body" not in json_result.output
+    assert task_yaml.read_text(encoding="utf-8") == before_task
+    assert evidence_yaml.read_text(encoding="utf-8") == before_evidence
+
+
+def test_task_context_distinguishes_ready_to_mark_done_from_claiming_done(tmp_path: Path) -> None:
+    create_workspace(tmp_path)
+    write_requirement(tmp_path)
+    create_task_via_cli(tmp_path)
+    task_yaml = tmp_path / "docs" / "active" / "REQ-20260702-001-TASK-20260702-001" / "task.yaml"
+    task = yaml.safe_load(task_yaml.read_text(encoding="utf-8"))
+    task["validation"] = {"status": "passed", "evidence_ref": "EV-REQ-20260702-001-TASK-20260702-001"}
+    task["handoff"] = {"status": "accepted", "note": "用户验收通过。"}
+    task_yaml.write_text(yaml.safe_dump(task, allow_unicode=True, sort_keys=False), encoding="utf-8")
+    evidence_yaml = tmp_path / "docs" / "active" / "REQ-20260702-001-TASK-20260702-001" / "evidence.yaml"
+    evidence_yaml.write_text(
+        yaml.safe_dump(
+            {
+                "schema_version": "0.1",
+                "id": "EV-REQ-20260702-001-TASK-20260702-001",
+                "task_id": "REQ-20260702-001-TASK-20260702-001",
+                "conclusion": "passed",
+                "key_outputs": ["验证通过。"],
+                "unverified_items": [],
+            },
+            allow_unicode=True,
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+
+    result = runner.invoke(
+        app,
+        ["task", "context", "实现任务 CLI", "--workspace-root", str(tmp_path)],
+    )
+
+    assert result.exit_code == 0
+    assert "可以标记完成：需先标记" in result.output
+    assert "可以声明完成：可以" not in result.output
+
+
+def test_task_context_rechecks_current_gate_even_when_stage_is_in_progress(tmp_path: Path) -> None:
+    create_workspace(tmp_path)
+    write_requirement(tmp_path)
+    create_task_via_cli(tmp_path)
+    task_yaml = tmp_path / "docs" / "active" / "REQ-20260702-001-TASK-20260702-001" / "task.yaml"
+    payload = yaml.safe_load(task_yaml.read_text(encoding="utf-8"))
+    payload["stage"] = "in_progress"
+    task_yaml.write_text(yaml.safe_dump(payload, allow_unicode=True, sort_keys=False), encoding="utf-8")
+
+    result = runner.invoke(
+        app,
+        ["task", "context", "实现任务 CLI", "--format", "json", "--workspace-root", str(tmp_path)],
+    )
+
+    assert result.exit_code == 0
+    context = json.loads(result.output)
+    assert context["ability_matrix"]["code_change"]["state"] == "blocked"
+    assert "missing_implementation_ready" in context["ability_matrix"]["code_change"]["gaps"]
+
+
+def test_task_context_treats_missing_entry_candidates_as_warning_not_hard_block(tmp_path: Path) -> None:
+    create_workspace(tmp_path)
+    write_requirement(tmp_path)
+    service_path = tmp_path / "repos" / "custom-service"
+    service_path.mkdir(parents=True)
+    (service_path / "service.custom").write_text("custom runtime\n", encoding="utf-8")
+    runner.invoke(
+        app,
+        [
+            "service",
+            "add",
+            "custom-service",
+            "--path",
+            str(service_path),
+            "--workspace-root",
+            str(tmp_path),
+        ],
+    )
+    create_task_via_cli(tmp_path, ["--service-ref", "custom-service"])
+    runner.invoke(
+        app,
+        [
+            "task",
+            "prepare",
+            "REQ-20260702-001-TASK-20260702-001",
+            "--working-scope",
+            "修改 custom-service。",
+            "--workspace-root",
+            str(tmp_path),
+        ],
+    )
+    runner.invoke(
+        app,
+        [
+            "task",
+            "set-stage",
+            "REQ-20260702-001-TASK-20260702-001",
+            "--stage",
+            "in_progress",
+            "--workspace-root",
+            str(tmp_path),
+        ],
+    )
+
+    result = runner.invoke(
+        app,
+        ["task", "context", "实现任务 CLI", "--format", "json", "--workspace-root", str(tmp_path)],
+    )
+
+    assert result.exit_code == 0
+    context = json.loads(result.output)
+    assert context["ability_matrix"]["code_change"]["state"] == "allowed"
+    assert "no_entry_candidates" in context["ability_matrix"]["code_change"]["warnings"]
+    assert context["services"][0]["hard_gaps"] == []
+    assert context["services"][0]["warnings"] == ["not_git", "no_entry_candidates"]
+
+
+def test_task_context_rejects_explicit_task_path_when_directory_id_mismatches_yaml(
+    tmp_path: Path,
+) -> None:
+    create_workspace(tmp_path)
+    write_requirement(tmp_path)
+    create_task_via_cli(tmp_path)
+    original_dir = tmp_path / "docs" / "active" / "REQ-20260702-001-TASK-20260702-001"
+    mismatched_dir = tmp_path / "docs" / "active" / "REQ-20260702-001-TASK-20260702-999"
+    original_dir.rename(mismatched_dir)
+
+    result = runner.invoke(
+        app,
+        [
+            "task",
+            "context",
+            str(mismatched_dir / "task.yaml"),
+            "--workspace-root",
+            str(tmp_path),
+        ],
+    )
+
+    assert result.exit_code == 2
+    assert "task_path_id_mismatch" in combined_output(result)
+
+
+def test_task_context_rejects_requirement_path_id_mismatch(tmp_path: Path) -> None:
+    create_workspace(tmp_path)
+    write_requirement(tmp_path)
+    create_task_via_cli(tmp_path)
+    requirement_yaml = tmp_path / "docs" / "active" / "REQ-20260702-001" / "requirement.yaml"
+    requirement_payload = yaml.safe_load(requirement_yaml.read_text(encoding="utf-8"))
+    requirement_payload["id"] = "REQ-20260702-999"
+    requirement_yaml.write_text(
+        yaml.safe_dump(requirement_payload, allow_unicode=True, sort_keys=False),
+        encoding="utf-8",
+    )
+
+    result = runner.invoke(
+        app,
+        ["task", "context", "实现任务 CLI", "--workspace-root", str(tmp_path)],
+    )
+
+    assert result.exit_code == 2
+    assert "requirement_path_id_mismatch" in combined_output(result)
+
+
+def test_task_context_accepts_task_yaml_path(tmp_path: Path) -> None:
+    create_workspace(tmp_path)
+    write_requirement(tmp_path)
+    create_task_via_cli(tmp_path)
+    task_yaml = tmp_path / "docs" / "active" / "REQ-20260702-001-TASK-20260702-001" / "task.yaml"
+
+    result = runner.invoke(
+        app,
+        ["task", "context", str(task_yaml), "--workspace-root", str(tmp_path)],
+    )
+
+    assert result.exit_code == 0
+    assert "当前任务：实现任务 CLI" in result.output
+    assert "所属需求：构建轻量 Workbench" in result.output
+    assert "REQ-20260702-001-TASK" not in result.output
+
+
+def test_task_context_rejects_missing_task_yaml_path(tmp_path: Path) -> None:
+    create_workspace(tmp_path)
+    missing_path = tmp_path / "docs" / "active" / "REQ-20260702-001-TASK-20260702-001" / "task.yaml"
+
+    result = runner.invoke(
+        app,
+        ["task", "context", str(missing_path), "--workspace-root", str(tmp_path)],
+    )
+
+    assert result.exit_code == 2
+    assert "task_path_missing" in combined_output(result)
+
+
+def test_task_context_rejects_task_yaml_path_outside_active_packages(tmp_path: Path) -> None:
+    create_workspace(tmp_path)
+    write_requirement(tmp_path)
+    create_task_via_cli(tmp_path)
+    task_dir = tmp_path / "docs" / "archive" / "REQ-20260702-001-TASK-20260702-001"
+    task_dir.mkdir(parents=True)
+    active_task_yaml = tmp_path / "docs" / "active" / "REQ-20260702-001-TASK-20260702-001" / "task.yaml"
+    archived_task_yaml = task_dir / "task.yaml"
+    archived_task_yaml.write_text(active_task_yaml.read_text(encoding="utf-8"), encoding="utf-8")
+
+    result = runner.invoke(
+        app,
+        ["task", "context", str(archived_task_yaml), "--workspace-root", str(tmp_path)],
+    )
+
+    assert result.exit_code == 2
+    assert "task_path_not_active" in combined_output(result)
+
+
+def test_task_context_rejects_unsupported_format_before_loading_workspace(tmp_path: Path) -> None:
+    result = runner.invoke(
+        app,
+        ["task", "context", "不存在的任务", "--format", "yaml", "--workspace-root", str(tmp_path)],
+    )
+
+    assert result.exit_code == 2
+    output = combined_output(result)
+    assert "unsupported_format: yaml" in output
+    assert "task_not_found" not in output
+    assert "workspace_marker_missing" not in output
+
+
 def test_service_add_and_list_commands_manage_registry(tmp_path: Path) -> None:
     create_workspace(tmp_path)
     service_path = tmp_path / "repos" / "api"
@@ -2100,6 +3336,122 @@ def test_service_status_command_reports_non_git_path(tmp_path: Path) -> None:
     assert result.exit_code == 0
     assert f"plain path={service_path}" in result.output
     assert "exists=True git_state=not_git" in result.output
+
+
+def test_service_context_command_reports_entry_gaps(tmp_path: Path) -> None:
+    create_workspace(tmp_path)
+    service_path = tmp_path / "repos" / "plain"
+    service_path.mkdir(parents=True)
+    runner.invoke(
+        app,
+        [
+            "service",
+            "add",
+            "plain",
+            "--path",
+            str(service_path),
+            "--workspace-root",
+            str(tmp_path),
+        ],
+    )
+
+    result = runner.invoke(
+        app,
+        ["service", "context", "plain", "--workspace-root", str(tmp_path)],
+    )
+
+    assert result.exit_code == 0
+    assert "服务：plain" in result.output
+    assert f"路径：{service_path}" in result.output
+    assert "状态：empty_dir | Git：not_git | 可见文件：0" in result.output
+    assert "入口候选：none" in result.output
+    assert "阻断：empty_service_dir" in result.output
+    assert "提醒：not_git,no_entry_candidates" in result.output
+    assert "gaps=" not in result.output
+
+
+def test_service_context_command_reports_git_scope_and_existing_changes(tmp_path: Path) -> None:
+    create_workspace(tmp_path)
+    service_path = tmp_path / "repos" / "web"
+    service_path.mkdir(parents=True)
+    subprocess.run(["git", "init"], cwd=service_path, check=True, capture_output=True, text=True)
+    (service_path / "package.json").write_text('{"scripts":{"test":"vitest"}}\n', encoding="utf-8")
+    runner.invoke(
+        app,
+        [
+            "service",
+            "add",
+            "web",
+            "--path",
+            str(service_path),
+            "--purpose",
+            "前端服务。",
+            "--workspace-root",
+            str(tmp_path),
+        ],
+    )
+
+    result = runner.invoke(
+        app,
+        ["service", "context", "web", "--workspace-root", str(tmp_path)],
+    )
+
+    assert result.exit_code == 0
+    assert "服务：web" in result.output
+    assert "用途：前端服务。" in result.output
+    assert "状态：non_empty_dir | Git：git | 可见文件：1" in result.output
+    assert "入口候选：package.json" in result.output
+    assert "Git 范围：git_status=service_path,service_relpath=." in result.output
+    assert "已有变更：dirty=0 untracked=1" in result.output
+    assert "阻断：" not in result.output
+
+
+def test_service_context_command_can_emit_json_for_task_context(tmp_path: Path) -> None:
+    create_workspace(tmp_path)
+    service_path = tmp_path / "repos" / "web"
+    service_path.mkdir(parents=True)
+    (service_path / "package.json").write_text('{"scripts":{"test":"vitest"}}\n', encoding="utf-8")
+    (service_path / "src").mkdir()
+    runner.invoke(
+        app,
+        [
+            "service",
+            "add",
+            "web",
+            "--path",
+            str(service_path),
+            "--workspace-root",
+            str(tmp_path),
+        ],
+    )
+
+    result = runner.invoke(
+        app,
+        ["service", "context", "web", "--format", "json", "--workspace-root", str(tmp_path)],
+    )
+
+    assert result.exit_code == 0
+    payload = json.loads(result.output)
+    assert payload["name"] == "web"
+    assert payload["path_state"] == "non_empty_dir"
+    assert payload["resolved_path"] == str(service_path)
+    assert "package.json" in payload["entry_candidates"]
+    assert "src/" in payload["entry_candidates"]
+    assert "no_entry_candidates" not in payload["gaps"]
+    assert payload["hard_gaps"] == []
+    assert payload["warnings"] == ["not_git"]
+
+
+def test_service_context_command_rejects_unknown_service(tmp_path: Path) -> None:
+    create_workspace(tmp_path)
+
+    result = runner.invoke(
+        app,
+        ["service", "context", "missing-service", "--workspace-root", str(tmp_path)],
+    )
+
+    assert result.exit_code == 2
+    assert "unknown_service: missing-service" in combined_output(result)
 
 
 def test_material_add_and_list_commands_manage_inbox_registry(tmp_path: Path) -> None:
