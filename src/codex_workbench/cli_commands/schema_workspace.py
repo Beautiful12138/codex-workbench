@@ -4,6 +4,7 @@ from pathlib import Path
 
 import typer
 
+from ..advice import workspace_advice_lines
 from ..errors import WorkbenchError
 from ..index import (
     _IndexSnapshot,
@@ -104,6 +105,19 @@ def _workspace_context_lines(root: Path, snapshot: _IndexSnapshot, *, check_serv
     lines.extend(_workspace_service_overview_lines(root, snapshot, service_ref_counts, check_services=check_services))
     lines.extend(["", "## 任务焦点", ""])
     lines.extend(_workspace_task_focus_lines(active_tasks))
+
+    lines.extend(["", "## 下一步建议", ""])
+    lines.extend(
+        f"- {line}"
+        for line in workspace_advice_lines(
+            active_requirement_count=len(snapshot.requirements),
+            active_task_count=len(active_tasks),
+            has_conflicts=bool(snapshot.conflicts),
+            has_waiting_feedback=bool(_waiting_feedback_tasks(active_tasks)),
+            has_blocked=bool(_blocked_tasks(active_tasks)),
+            has_needs_confirmation=bool(_needs_confirmation_tasks(active_tasks)),
+        )
+    )
 
     lines.extend(["", "## 冲突", ""])
     conflict_lines = [f"- {item}" for item in snapshot.conflicts[:5]]

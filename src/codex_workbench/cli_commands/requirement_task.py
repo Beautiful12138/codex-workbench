@@ -6,6 +6,7 @@ from pathlib import Path
 import typer
 from pydantic import ValidationError
 
+from ..advice import task_command_advice_lines
 from ..errors import WorkbenchError
 from ..ids import allocate_requirement_id, allocate_task_id
 from ..packages import (
@@ -436,6 +437,16 @@ def _format_task_context(context: TaskContext) -> str:
     if context.next_actions:
         lines.extend(["", "下一步建议："])
         lines.extend(f"- {action}" for action in context.next_actions)
+    command_advice = task_command_advice_lines(
+        code_change_state=context.ability_matrix["code_change"].state,
+        code_change_gaps=context.ability_matrix["code_change"].gaps,
+        claim_done_state=context.ability_matrix["claim_done"].state,
+        claim_done_gaps=context.ability_matrix["claim_done"].gaps,
+        warnings=context.ability_matrix["code_change"].warnings,
+    )
+    if command_advice:
+        lines.extend(["", "建议命令："])
+        lines.extend(f"- {line}" for line in command_advice)
     return "\n".join(lines)
 
 
