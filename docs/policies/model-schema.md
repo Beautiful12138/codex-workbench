@@ -99,7 +99,7 @@ impact_profile:
 - `risk_triggers`
 - `risk_assessment_notes`
 - `impact_profile`
-- `review.status` / `review.ref`
+- `review.status` / `review.ref` / `review.reviewer` / `review.independent`
 - `implementation.ready` / `implementation.conclusion` / `implementation.ref`
 - `validation.status` / `validation.evidence_ref` / `validation.unverified_items`
 - `handoff.status` / `handoff.note`

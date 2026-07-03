@@ -77,6 +77,11 @@ def evaluate_task_transition(
         if _needs_high_pressure(task):
             if task.review.status is not ReviewStatus.DONE:
                 reason_codes.append("missing_high_risk_review")
+            else:
+                if task.review.reviewer is None:
+                    reason_codes.append("missing_high_risk_review_reviewer")
+                if not task.review.independent:
+                    reason_codes.append("missing_high_risk_independent_review")
             if not task.implementation.ref:
                 reason_codes.append("missing_high_risk_implementation_ref")
             if not _has_nonempty_items(task.working_scope):

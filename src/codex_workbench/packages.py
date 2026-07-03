@@ -290,6 +290,8 @@ def prepare_task(
     impact_reason: str | None = None,
     implementation_ref: str | None = None,
     review_ref: str | None = None,
+    reviewer: str | None = None,
+    review_independent: bool = False,
     risk_acceptance_note: str | None = None,
     likely_touchpoints: list[str] | None = None,
     risk_triggers: list[str] | None = None,
@@ -329,8 +331,21 @@ def prepare_task(
         require_reason=False,
     )
 
-    if review_ref and review_ref.strip():
-        data["review"] = {"status": "done", "ref": review_ref.strip()}
+    if (review_ref and review_ref.strip()) or (reviewer and reviewer.strip()) or review_independent:
+        review = data.setdefault("review", {})
+        if not isinstance(review, dict):
+            raise WorkbenchError(
+                ErrorCode.VALIDATION_ERROR,
+                "invalid_review_state",
+                exit_code=2,
+            )
+        if review_ref and review_ref.strip():
+            review["status"] = "done"
+            review["ref"] = review_ref.strip()
+        if reviewer and reviewer.strip():
+            review["reviewer"] = reviewer.strip()
+        if review_independent:
+            review["independent"] = True
 
     if risk_acceptance_note and risk_acceptance_note.strip():
         confirmations = data.setdefault("confirmations", [])

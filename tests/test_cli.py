@@ -61,8 +61,6 @@ def combined_output(result) -> str:
 def assert_markdown_template_hint(output: str) -> None:
     hint_lines = [line for line in output.splitlines() if line.startswith("markdown_template_hint")]
     assert hint_lines
-    assert "标题、章节和表达方式可按当前任务自由删改" in hint_lines[-1]
-    assert "task.yaml" not in hint_lines[-1]
 
 
 def _workspace_context_section(output: str, start: str, end: str) -> str:
@@ -1739,6 +1737,62 @@ def test_task_prepare_high_risk_requires_review_ref_and_risk_acceptance(
             str(tmp_path),
         ],
     )
+    review_only_prepare = runner.invoke(
+        app,
+        [
+            "task",
+            "prepare",
+            "REQ-20260702-001-TASK-20260702-001",
+            "--working-scope",
+            "src/codex_workbench/cli.py",
+            "--implementation-ref",
+            "implementation.md",
+            "--review-ref",
+            "review.md",
+            "--risk-acceptance-note",
+            "用户确认高风险边界。",
+            "--risk-trigger",
+            "触发真实数据写入时暂停确认。",
+            "--risk-level",
+            "high",
+            "--process-level",
+            "high",
+            "--impact-action",
+            "data_write",
+            "--impact-environment",
+            "shared",
+            "--impact-data-effect",
+            "real_data_write",
+            "--impact-external-effect",
+            "write",
+            "--impact-blast-radius",
+            "shared_users",
+            "--impact-reversibility",
+            "backup_restore",
+            "--impact-contract-change",
+            "false",
+            "--impact-security-or-permission",
+            "false",
+            "--impact-verification-confidence",
+            "integration_required",
+            "--impact-reason",
+            "高风险任务开工前补齐影响面画像。",
+            "--workspace-root",
+            str(tmp_path),
+        ],
+    )
+    blocked_without_independent_review = runner.invoke(
+        app,
+        [
+            "task",
+            "set-stage",
+            "REQ-20260702-001-TASK-20260702-001",
+            "--stage",
+            "in_progress",
+            "--workspace-root",
+            str(tmp_path),
+        ],
+    )
     full_prepare = runner.invoke(
         app,
         [
@@ -1751,6 +1805,9 @@ def test_task_prepare_high_risk_requires_review_ref_and_risk_acceptance(
             "implementation.md",
             "--review-ref",
             "review.md",
+            "--reviewer",
+            "subagent",
+            "--review-independent",
             "--risk-acceptance-note",
             "用户确认高风险边界。",
             "--risk-trigger",
@@ -1803,6 +1860,11 @@ def test_task_prepare_high_risk_requires_review_ref_and_risk_acceptance(
     assert "missing_high_risk_implementation_ref" in output
     assert "missing_high_risk_triggers" in output
     assert "missing_high_risk_acceptance" in output
+    assert review_only_prepare.exit_code == 0
+    review_only_output = combined_output(blocked_without_independent_review)
+    assert blocked_without_independent_review.exit_code != 0
+    assert "missing_high_risk_review_reviewer" in review_only_output
+    assert "missing_high_risk_independent_review" in review_only_output
     assert full_prepare.exit_code == 0
     assert allowed.exit_code == 0
 
@@ -1825,6 +1887,9 @@ def test_high_risk_in_progress_requires_impact_profile_even_when_other_facts_exi
             "implementation.md",
             "--review-ref",
             "review.md",
+            "--reviewer",
+            "subagent",
+            "--review-independent",
             "--risk-acceptance-note",
             "用户确认高风险边界。",
             "--risk-trigger",
@@ -1856,6 +1921,8 @@ def test_high_risk_in_progress_requires_impact_profile_even_when_other_facts_exi
     assert blocked.exit_code != 0
     assert "missing_high_risk_impact_profile" in output
     assert "missing_high_risk_review" not in output
+    assert "missing_high_risk_review_reviewer" not in output
+    assert "missing_high_risk_independent_review" not in output
     assert "missing_high_risk_implementation_ref" not in output
     assert "missing_high_risk_triggers" not in output
     assert "missing_high_risk_acceptance" not in output

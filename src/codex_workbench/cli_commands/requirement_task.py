@@ -308,6 +308,16 @@ def task_prepare(
         "--review-ref",
         help="高风险任务的 review 位置或摘要；推荐任务包本地 review.md；传入后标记 review done。",
     ),
+    reviewer: str | None = typer.Option(
+        None,
+        "--reviewer",
+        help="复核主体：subagent/user/human/external；高风险优先 subagent。",
+    ),
+    review_independent: bool = typer.Option(
+        False,
+        "--review-independent",
+        help="声明 review 来自独立主体；high/critical 需要，个人工作台优先子代理复核。",
+    ),
     risk_acceptance_note: str | None = typer.Option(
         None,
         "--risk-acceptance-note",
@@ -351,6 +361,8 @@ def task_prepare(
             impact_reason=impact_reason,
             implementation_ref=implementation_ref,
             review_ref=review_ref,
+            reviewer=reviewer,
+            review_independent=review_independent,
             risk_acceptance_note=risk_acceptance_note,
             likely_touchpoints=likely_touchpoint,
             risk_triggers=risk_trigger,

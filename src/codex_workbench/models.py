@@ -139,6 +139,13 @@ class ReviewStatus(str, Enum):
     BLOCKED = "blocked"
 
 
+class ReviewReviewer(str, Enum):
+    SUBAGENT = "subagent"
+    USER = "user"
+    HUMAN = "human"
+    EXTERNAL = "external"
+
+
 class ValidationStatus(str, Enum):
     NOT_STARTED = "not_started"
     PENDING = "pending"
@@ -242,6 +249,8 @@ class DiscoveryState(WorkbenchModel):
 class ReviewState(WorkbenchModel):
     status: ReviewStatus = ReviewStatus.NOT_STARTED
     ref: str | None = None
+    reviewer: ReviewReviewer | None = None
+    independent: bool = False
 
 
 class ImplementationState(WorkbenchModel):

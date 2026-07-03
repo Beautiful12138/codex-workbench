@@ -57,7 +57,12 @@ def test_high_risk_in_progress_rejects_blank_scope_and_triggers() -> None:
             "conclusion": "scoped",
             "ref": "implementation.md",
         },
-        review={"status": "done", "ref": "review.md"},
+        review={
+            "status": "done",
+            "ref": "review.md",
+            "reviewer": "subagent",
+            "independent": True,
+        },
         working_scope=["   "],
         risk_triggers=["   "],
         confirmations=[
@@ -189,7 +194,12 @@ def test_high_or_critical_in_progress_requires_extra_readiness() -> None:
             "conclusion": "scoped",
             "ref": "implementation.md",
         },
-        review={"status": "done", "ref": "review.md"},
+        review={
+            "status": "done",
+            "ref": "review.md",
+            "reviewer": "subagent",
+            "independent": True,
+        },
         working_scope=["src/demo.py"],
         risk_triggers=["触发真实数据写入时暂停确认。"],
         impact_profile={
@@ -218,6 +228,45 @@ def test_high_or_critical_in_progress_requires_extra_readiness() -> None:
     assert allowed.reason_codes == ()
 
 
+def test_high_risk_in_progress_requires_independent_review() -> None:
+    self_reviewed_high_task = task(
+        risk_level="high",
+        process_level="high",
+        implementation={
+            "ready": True,
+            "conclusion": "scoped",
+            "ref": "implementation.md",
+        },
+        review={"status": "done", "ref": "review.md"},
+        working_scope=["src/demo.py"],
+        risk_triggers=["触发真实数据写入时暂停确认。"],
+        impact_profile={
+            "action": "data_write",
+            "environment": "shared",
+            "data_effect": "real_data_write",
+            "external_effect": "write",
+            "blast_radius": "shared_users",
+            "reversibility": "backup_restore",
+            "contract_change": False,
+            "security_or_permission": False,
+            "verification_confidence": "integration_required",
+        },
+        confirmations=[
+            {
+                "type": "risk_acceptance",
+                "source": "user",
+                "note": "用户确认该高风险边界。",
+            }
+        ],
+    )
+
+    check = evaluate_task_transition(self_reviewed_high_task, TaskStage.IN_PROGRESS)
+
+    assert check.allowed is False
+    assert "missing_high_risk_review_reviewer" in check.reason_codes
+    assert "missing_high_risk_independent_review" in check.reason_codes
+
+
 def test_high_risk_in_progress_requires_impact_profile() -> None:
     high_ready_without_profile = task(
         risk_level="high",
@@ -227,7 +276,12 @@ def test_high_risk_in_progress_requires_impact_profile() -> None:
             "conclusion": "scoped",
             "ref": "implementation.md",
         },
-        review={"status": "done", "ref": "review.md"},
+        review={
+            "status": "done",
+            "ref": "review.md",
+            "reviewer": "subagent",
+            "independent": True,
+        },
         working_scope=["src/demo.py"],
         risk_triggers=["触发真实数据写入时暂停确认。"],
         confirmations=[

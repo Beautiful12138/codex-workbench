@@ -14,6 +14,7 @@ from codex_workbench.models import (
     HandoffStatus,
     Knowledge,
     ProcessLevel,
+    ReviewReviewer,
     ReviewStatus,
     RiskLevel,
     ServiceRegistry,
@@ -145,9 +146,19 @@ def test_task_state_requires_schema_version() -> None:
 
 
 def test_review_status_has_own_done_semantics() -> None:
-    task = TaskState.model_validate(minimal_task(review={"status": "done"}))
+    task = TaskState.model_validate(
+        minimal_task(
+            review={
+                "status": "done",
+                "reviewer": "subagent",
+                "independent": True,
+            }
+        )
+    )
 
     assert task.review.status is ReviewStatus.DONE
+    assert task.review.reviewer is ReviewReviewer.SUBAGENT
+    assert task.review.independent is True
 
 
 def test_task_state_accepts_lifecycle_dimensions() -> None:

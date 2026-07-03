@@ -16,7 +16,7 @@ draft | ready | in_progress | verification_pending | blocked | done | obsolete
 
 - 进入 `in_progress` 前必须有 implementation-ready：`implementation.ready=true` 且 `implementation.conclusion=scoped`；最小状态用 `task prepare` 写入。
 - `task check --to <stage>` 只读预演同一套门禁；真正写阶段仍使用 `task set-stage`。
-- `risk_level=high|critical` 或 `process_level=high|critical` 进入 `in_progress` 前，还需要 `review.status=done`、`implementation.ref`、`working_scope`、`risk_triggers` 和 `risk_acceptance` confirmation。
+- `risk_level=high|critical` 或 `process_level=high|critical` 进入 `in_progress` 前，还需要 `review.status=done`、`review.independent=true`、`review.reviewer`、`implementation.ref`、`working_scope`、`risk_triggers` 和 `risk_acceptance` confirmation；复核主体优先使用子代理。
 - `risk_triggers` 是暂停确认条件，不是路径白名单；触发后先对齐目标、风险或授权。
 - `service_refs` 是相关服务标记，用于恢复上下文和状态展示；它不是文件路径白名单，但写出的 service ref 必须能对应已登记服务。
 - 进入 `done` 前必须有 `validation.status=passed`、`validation.evidence_ref`、无未验证项，并且 handoff 不处于等待或拒绝状态。

@@ -1,6 +1,6 @@
 # 恢复与并发工作对象
 
-本文件说明 Workbench 如何在多个 requirement、多个 task、多个 service 并存时选择工作对象。
+本文件说明 Workbench 如何在多个 requirement、多个 task、多个 service 并存时选择工作对象。目标不是让 Codex 维护索引，而是让 Codex 在新窗口或多任务现场里快速找到“现在该服务于哪个任务”。
 
 ## 核心原则
 

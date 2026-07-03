@@ -1,6 +1,6 @@
 # 风险与流程档位
 
-本文件说明 Workbench 如何判断任务风险和流程显性化强度。核心原则：风险按真实后果判断，不按组件名判断。
+本文件说明 Workbench 如何判断任务风险和流程显性化强度。核心原则：风险看真实后果，不看组件名；流程看需要多少显性化，不制造空仪式。
 
 ## 风险函数
 
@@ -73,14 +73,14 @@ impact_profile:
 - `micro`：非常小、低风险、可本地验证、可 git 回滚；不建厚文档。
 - `lightweight`：小范围真实任务；需要 task、prepare、evidence，review / implementation 可内联。
 - `standard`：正常工程任务；需要清楚 scope、implementation-ready、验证和回滚。
-- `high`：需要显性 review、implementation ref、risk_triggers 和风险接受。
+- `high`：需要显性 independent review、implementation ref、risk_triggers 和风险接受。
 - `critical`：必须暂停确认，强门禁，必要时独立复核。
 
 `process_level=micro/lightweight` 只表示少文件、少仪式，不表示可以跳过目标、范围、验证、交接和完成 guard。
 
 ## 必须升级或暂停
 
-无论组件名是什么，出现以下情况时必须升级或暂停确认：
+无论组件名是什么，出现以下真实后果时必须升级或暂停确认：
 
 - 真实数据写入、删除、迁移、清空。
 - 生产环境、共享环境、外部服务或影响他人的运行时状态。
@@ -109,7 +109,7 @@ impact_profile:
 
 - 本地单测 SQL 或 mock SQL：通常 `risk_level=low`，`process_level=micro/lightweight`。
 - 业务查询 SQL 小改，影响接口返回：通常 `risk_level=standard`，`process_level=standard/lightweight`。
-- 生产库 DDL、迁移、批量 update/delete：必须 `risk_level=high/critical`，需要 review、implementation、risk acceptance、evidence 和回滚锚点。
+- 生产库 DDL、迁移、批量 update/delete：必须 `risk_level=high/critical`，需要 independent review、implementation、risk acceptance、evidence 和回滚锚点。
 
 同样是配置：
 
@@ -125,13 +125,12 @@ impact_profile:
 
 ## CLI 门禁边界
 
-AI 负责根据上下文填写 `impact_profile`、`risk_level`、`process_level` 和 `risk_triggers`。CLI/schema 负责结构化校验和硬门禁：
+AI 负责根据上下文填写 `impact_profile`、`risk_level`、`process_level` 和 `risk_triggers`。CLI/schema 负责结构化校验和硬门禁。
 
 - task 创建后发现影响面变化，用 `task impact-set` 更新风险画像；该命令必须记录更新原因。
 - `task prepare` 可以在开工准入时同步补齐或修正 `impact_profile`、`risk_level` 和 `process_level`。
 - 已有 `impact_profile` 时，`task prepare` / `task impact-set` 可以局部覆盖字段；新建画像仍必须有 `action`。
-- high / critical 进入 `in_progress` 前必须有 review、implementation ref、working_scope、risk_triggers 和风险接受。
-- high / critical 进入 `in_progress` 前必须有 `impact_profile`。
+- high / critical 进入 `in_progress` 前必须有 independent review、implementation ref、working_scope、risk_triggers、风险接受和 `impact_profile`。
 - 明显真实后果字段不能与 `risk_level=low` 或 `process_level=micro` 同时出现。
 - 环境、授权、验证或回滚不清时，不能用 task stage 推进掩盖缺口。
 - generated views 只展示风险摘要和缺口，不复制长正文。

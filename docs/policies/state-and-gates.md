@@ -1,6 +1,6 @@
 # 状态与门禁
 
-本文件说明 Workbench 的阶段语义和推进条件。机器状态以 YAML 为准，Markdown 只解释现场。
+本文件说明 Workbench 的阶段语义和推进条件。机器状态以 YAML 为准，Markdown 只解释现场。门禁的目的不是拖慢工作，而是防止 Codex 在目标、风险、验证或交接不清时误称完成。
 
 ## 需求入口
 
@@ -35,16 +35,18 @@ task 包应回答：
 - 验证方式和回滚思路清楚。
 - 触发真实后果风险时有 `risk_triggers` 和必要确认。
 
-低风险任务可以少文件，但不能跳过这些语义。高风险或 critical 任务进入 `in_progress` 前还需要 review done、implementation ref、working_scope、risk_triggers 和风险接受说明。
+低风险任务可以少文件，但不能跳过这些语义。高风险或 critical 任务进入 `in_progress` 前还需要 independent review done、implementation ref、working_scope、risk_triggers 和风险接受说明。个人本地工作台优先让子代理做独立复核；用户、外部人或其他独立主体也可以作为复核来源。
 
 如果 task 写有 `impact_profile`，阶段推进时应核对它是否与 `risk_level` / `process_level` 一致。真实数据写入、生产/共享环境、权限安全、部署、不可逆、影响他人、环境不清、授权不清或回滚不清，不能仍按 micro/low 直接推进。
 
 ## 阶段推进
 
 - `task check --to <stage>` 只读预演门禁。
+- `task check` 通过只表示可推进，不等于已经进入目标阶段；需要改任务目标内文件时，必须先由 `task set-stage` 写入 `in_progress`。
 - `task set-stage` 才写阶段。
 - `blocked` 必须有 reason、blocked_by、resume_condition 和 resume_stage。
 - `obsolete` 必须有 obsolete_reason；它表示误建或废弃，不替代 done。
+- `verification_pending` 表示实现已交给验证、测试环境、用户或外部系统确认；它是等待反馈，不是 blocked。
 - `done` 前必须有 validation passed、evidence_ref、无未验证项，并且 handoff 不等待、不拒绝。
 
 ## evidence / validation / handoff

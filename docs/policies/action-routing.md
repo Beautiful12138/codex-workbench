@@ -1,13 +1,13 @@
 # 动作分流
 
-本文件说明用户请求进入 Workbench 后如何分类。分类决定读取深度、是否写状态、用哪个 CLI、何时暂停。
+本文件说明用户请求进入 Workbench 后如何分类。它不是为了让 Codex 多走流程，而是帮助 Codex 先判断“用户真正要做什么”，再决定读取深度、是否写状态、使用哪个 CLI，以及什么时候该停下来确认。
 
 ## 总原则
 
 - 普通讨论、解释、方向判断和只读探索默认不写状态。
 - 用户明确要求纳入、创建、推进、验证、关闭、归档或记录时，才写包或运行状态变更 CLI。
-- 能只读调查就先调查；会影响代码、配置、数据、权限、安全、部署、外部环境或完成结论时，先确认。
-- 低风险小动作不需要制造空仪式；高影响动作不能靠猜。
+- 能只读调查就先调查；一旦会影响代码、配置、数据、权限、安全、部署、外部环境或完成结论，就先确认边界。
+- 低风险小动作不制造空仪式；高影响动作不靠猜。
 - 风险按真实后果判断，不按 DB、SQL、Redis、MQ、配置、部署等组件名判断；完整判断见 `docs/policies/risk-and-process.md`。
 
 ## 类型判断
@@ -15,7 +15,7 @@
 | 类型 | 使用场景 | 默认记录 |
 | --- | --- | --- |
 | `discussion` | 解释、比较、判断方向、问是否合理 | 不落档 |
-| `read_only_exploration` | 看文件、看状态、看日志、定位问题 | 通常不落档；支撑需求时写 discovery |
+| `read_only_exploration` | 看文件、看状态、看日志、定位问题 | 通常不落档；用户要求纳入或影响后续恢复时写 discovery |
 | `small-fix` | 用户明确授权的小型低风险修改 | 不自动创建正式 task；必要时写 action note |
 | `product_task` | 用户确认要实现、修复或调整交付目标 | material / discovery / intake / task / evidence |
 | `maintenance_action` | Workbench 自身维护、文档整理、本地工具修补 | 必要时写 action note |
@@ -27,21 +27,23 @@
 
 ### discussion
 
-用户在问“怎么看”“是否合理”“帮我分析”“解释一下”时，默认是 discussion。可以读用户指定文件或少量上下文，但不写状态。
+用户在问“怎么看”“是否合理”“帮我分析”“解释一下”时，先按 discussion 处理。可以读用户指定文件或少量上下文，但不为了留下痕迹而写状态。
 
 只有用户明确说“纳入需求”“按这个改”“创建任务”“记录下来”时，才升级。
 
 ### read_only_exploration
 
-用户说“看看”“定位”“查一下”“读一下日志/配置/代码”时，默认只读探索。可以使用搜索、读取文件、运行只读命令。探索结果如果会成为需求事实，应写 discovery；否则不落档。
+用户说“看看”“定位”“查一下”“读一下日志/配置/代码”时，先按只读探索处理。可以搜索、读取文件、运行只读命令。
+
+探索结果只有在用户要求纳入 Workbench、会影响后续恢复、会支撑需求事实、验收、风险接受或运维判断时，才写 discovery 或 action note；否则不落档。
 
 ### small-fix
 
-用户明确授权的小型低风险修改，可以直接最小改动和最小验证，不自动创建正式 task。是否能走 `small-fix`，必须按 `docs/policies/risk-and-process.md` 的风险公式和影响面画像判断，而不是按“改动看起来小”或组件名判断。
+用户明确授权的小型低风险修改，可以直接最小改动和最小验证，不自动创建正式 task。是否能走 `small-fix`，要按 `docs/policies/risk-and-process.md` 的风险公式和影响面画像判断，而不是按“改动看起来小”或组件名判断。
 
-快速判断时至少看：`action`、`environment`、`data_effect`、`external_effect`、`blast_radius`、`reversibility`、`contract_change`、`security_or_permission`、`verification_confidence`。只有影响清楚、低风险、可本地验证、可回滚、无真实数据和外部持久影响时，才保持 `small-fix`。
+快速判断时至少看：`action`、`environment`、`data_effect`、`external_effect`、`blast_radius`、`reversibility`、`contract_change`、`security_or_permission`、`verification_confidence`。
 
-如果影响面不清、验证或回滚不清，或触发真实后果风险，升级为正式 task 或 ops_action。若小修需要跨会话接续、影响使用方式或需要留痕，可写 action note。
+只有影响清楚、低风险、可本地验证、可回滚、无真实数据和外部持久影响时，才保持 `small-fix`。如果影响面不清、验证或回滚不清，或触发真实后果风险，升级为正式 task 或 ops_action。若小修需要跨会话接续、影响使用方式或需要留痕，可写 action note。
 
 ### product_task
 
@@ -53,11 +55,7 @@
 
 ### maintenance_action
 
-修改 Workbench 自身文档、模板、测试或 CLI，且不绑定真实业务需求时，可作为维护动作处理。若改动需要跨会话接续、影响使用方式或需要留痕，可写 action note；否则用 Git 提交即可。
-
-### Workbench 自身维护
-
-修改 codex-workbench 自身的文档、policy、skill、CLI、测试、模板或 generated view 逻辑，默认是 `maintenance_action / repo maintenance`，不强制创建 requirement/task。
+修改 Workbench 自身文档、policy、skill、CLI、测试、模板或 generated view 逻辑，且不绑定真实业务需求时，默认是 `maintenance_action / repo maintenance`，不强制创建 requirement/task。
 
 用户明确授权后，可以直接改文件、运行验证和提交。只有用户明确说“纳入 Workbench 流程”“作为正式需求管理”或需要多轮长期跟踪时，才创建 requirement/task。
 
@@ -67,7 +65,7 @@
 
 任何外部环境、服务器、容器、权限、配置、部署、共享状态或运行时状态变更，都属于 ops_action。即使用户语气很轻，也要先确认目标、环境、授权和回滚方式。
 
-Standalone ops action 不因为风险高就自动变成产品 task；但真实后果风险仍必须按 `risk-and-process` 加严授权、记录和回滚。
+Standalone ops action 不因为风险高就自动变成产品 task；但真实后果风险仍必须按 `risk-and-process` 加严授权、记录和回滚，不能用 action note 或口头判断绕过确认。
 
 ### ephemeral_check
 
