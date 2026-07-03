@@ -74,7 +74,7 @@ impact_profile:
 - `lightweight`：小范围真实任务；需要 task、prepare、evidence，review / implementation 可内联。
 - `standard`：正常工程任务；需要清楚 scope、implementation-ready、验证和回滚。
 - `high`：需要显性 independent review、implementation ref、risk_triggers 和风险接受。
-- `critical`：必须暂停确认，强门禁，必要时独立复核。
+- `critical`：必须暂停确认，强门禁，并需要 independent review、implementation ref、risk_triggers 和风险接受。
 
 `process_level=micro/lightweight` 只表示少文件、少仪式，不表示可以跳过目标、范围、验证、交接和完成 guard。
 
@@ -132,6 +132,7 @@ AI 负责根据上下文填写 `impact_profile`、`risk_level`、`process_level`
 - 已有 `impact_profile` 时，`task prepare` / `task impact-set` 可以局部覆盖字段；新建画像仍必须有 `action`。
 - high / critical 进入 `in_progress` 前必须有 independent review、implementation ref、working_scope、risk_triggers、风险接受和 `impact_profile`。
 - 明显真实后果字段不能与 `risk_level=low` 或 `process_level=micro` 同时出现。
+- CLI 只硬挡最明显的 low/micro 与真实后果冲突；standard 是否继续升级为 high/critical，仍由 Codex 按本 policy、用户确认和风险画像判断，不能把 CLI 没拦当成降级许可。
 - 环境、授权、验证或回滚不清时，不能用 task stage 推进掩盖缺口。
 - generated views 只展示风险摘要和缺口，不复制长正文。
 

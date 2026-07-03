@@ -47,7 +47,7 @@ task 包应回答：
 - `blocked` 必须有 reason、blocked_by、resume_condition 和 resume_stage。
 - `obsolete` 必须有 obsolete_reason；它表示误建或废弃，不替代 done。
 - `verification_pending` 表示实现已交给验证、测试环境、用户或外部系统确认；它是等待反馈，不是 blocked。
-- `done` 前必须有 validation passed、evidence_ref、无未验证项，并且 handoff 不等待、不拒绝。
+- `done` 前必须有 validation passed、evidence_ref、无未验证项；handoff 不能等待或拒绝，若已 accepted 必须有 note。
 
 ## evidence / validation / handoff
 

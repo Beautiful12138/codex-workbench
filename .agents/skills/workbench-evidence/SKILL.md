@@ -85,8 +85,7 @@ task 能 done 必须同时满足：
 - validation 有 evidence_ref。
 - validation 无未验证项。
 - evidence 真实存在且属于该 task。
-- handoff 不等待、不拒绝。
-- accepted handoff 有 note。
+- handoff 不等待、不拒绝；若 accepted 必须有 note。
 
 ## 常用命令
 

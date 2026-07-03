@@ -38,13 +38,12 @@ draft | ready | in_progress | verification_pending | blocked | done | obsolete
 
 ## 冲突裁决
 
-状态冲突不能按更新时间静默覆盖。事实层级从高到低为：
+状态冲突不能按更新时间静默覆盖。以下是事实证据层级，不改变 YAML 是机器状态真源：
 
 ```text
 live_evidence
 > evidence
 > action_note
-> progress
 > requirement
 > discovery
 > generated_index

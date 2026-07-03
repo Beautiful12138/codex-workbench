@@ -67,12 +67,12 @@
 - `docs/archive/`：版本化冷历史，默认不作为当前上下文。
 - `docs/actions/`、`docs/changes/`、`docs/decisions/`、`docs/suspicions/`：非任务动作、范围变化、长期决策和疑点线索。
 
-事实层级：人工明确确认 / 命令输出 / 真实文件状态 > evidence > action note > requirement/task YAML > discovery > generated view > task next_step > AI 推断 > 未确认假设。
+事实证据层级，不改变 YAML 是机器状态真源：人工明确确认 / 命令输出 / 真实文件状态 > evidence > action note > requirement/task YAML > discovery > generated view > task next_step > AI 推断 > 未确认假设。
 
 ## 红线
 
 - 没有用户确认的 readable requirement，不创建正式产品 task。
-- 没有 `in_progress` task 和清楚 implementation-ready，不修改任务目标内文件。
+- 正式产品 task 未进入 `in_progress` 或 implementation-ready 不清时，不修改任务目标内文件；明确授权的 `small-fix` / `maintenance_action` 按 action-routing 最小改动和验证，不强制创建 task。
 - `service_refs` 是相关服务标记，不是修改白名单。
 - 涉及环境、账号、数据、部署、安全、权限、费用、不可逆操作、影响他人或共享环境时，先确认授权和风险边界。
 - 没有 evidence，不声称已验证或已完成。
