@@ -19,6 +19,7 @@ CURRENT_PATH = "CURRENT.md"
 CURRENT_TASK_LIMIT = 5
 CURRENT_WAITING_FEEDBACK_LIMIT = 3
 RECOVERY_TASK_LIMIT = 3
+RECOVERY_WAITING_FEEDBACK_LIMIT = 3
 RECOVERY_REQUIREMENT_LIMIT = 5
 RECOVERY_EVIDENCE_LIMIT = 5
 RECOVERY_CONFLICT_LIMIT = 5
@@ -589,24 +590,38 @@ def _render_recovery(snapshot: _IndexSnapshot) -> str:
         for task in snapshot.tasks
         if str(task.data.get("stage", "") if task.data else "") not in {"done", "obsolete"}
     ]
-    if active_tasks:
-        active_tasks = sorted(
-            active_tasks,
-            key=lambda item: (
-                _record_timestamp(item, "updated_at"),
-                _record_timestamp(item, "created_at"),
-                item.id,
-            ),
-            reverse=True,
-        )
-        requirement_by_id = {requirement.id: requirement for requirement in snapshot.requirements}
-        for task in active_tasks[:RECOVERY_TASK_LIMIT]:
+    active_tasks = sorted(
+        active_tasks,
+        key=lambda item: (
+            _record_timestamp(item, "updated_at"),
+            _record_timestamp(item, "created_at"),
+            item.id,
+        ),
+        reverse=True,
+    )
+    actionable_tasks = [task for task in active_tasks if not _is_waiting_feedback_task(task)]
+    waiting_feedback_tasks = [task for task in active_tasks if _is_waiting_feedback_task(task)]
+    requirement_by_id = {requirement.id: requirement for requirement in snapshot.requirements}
+    if actionable_tasks:
+        for task in actionable_tasks[:RECOVERY_TASK_LIMIT]:
             lines.extend(_task_recovery_lines(task, requirement_by_id))
-        remaining = len(active_tasks) - RECOVERY_TASK_LIMIT
+        remaining = len(actionable_tasks) - RECOVERY_TASK_LIMIT
         if remaining > 0:
-            lines.append(f"- and {remaining} more active tasks")
+            lines.append(f"- and {remaining} more actionable tasks")
+    elif active_tasks:
+        lines.append("- no actionable tasks")
     else:
         lines.append("- no active tasks")
+
+    lines.extend(["", "## 等待反馈", ""])
+    if waiting_feedback_tasks:
+        for task in waiting_feedback_tasks[:RECOVERY_WAITING_FEEDBACK_LIMIT]:
+            lines.extend(_waiting_feedback_recovery_lines(task, requirement_by_id))
+        remaining_waiting = len(waiting_feedback_tasks) - RECOVERY_WAITING_FEEDBACK_LIMIT
+        if remaining_waiting > 0:
+            lines.append(f"- and {remaining_waiting} more waiting feedback tasks")
+    else:
+        lines.append("- none")
 
     lines.extend(["", "## 阻塞或异常", ""])
     blocked_lines = _blocked_task_lines(active_tasks)
@@ -650,6 +665,41 @@ def _task_recovery_lines(task: _YamlRecord, requirement_by_id: dict[str, _YamlRe
     if evidence_ref:
         lines.append(f"  - evidence：`{evidence_ref}`")
     return lines
+
+
+def _waiting_feedback_recovery_lines(task: _YamlRecord, requirement_by_id: dict[str, _YamlRecord]) -> list[str]:
+    data = task.data or {}
+    stage = str(data.get("stage", "unknown")).strip() or "unknown"
+    requirement_id = str(data.get("requirement_id", "")).strip()
+    next_step = str(data.get("next_step", "")).strip()
+    validation = data.get("validation", {})
+    validation_status = ""
+    if isinstance(validation, dict):
+        validation_status = str(validation.get("status", "")).strip()
+    waiting_reasons = _waiting_feedback_reasons(task)
+    lines = [
+        f"- {_record_link(task)} [{stage}]",
+        f"  - 需求：{_requirement_link(requirement_by_id, requirement_id)}",
+        f"  - 等待：{', '.join(waiting_reasons) if waiting_reasons else 'feedback'}",
+        f"  - 验证：{validation_status or 'not_started'}",
+    ]
+    if next_step:
+        lines.append(f"  - 下一步：{next_step}")
+    return lines
+
+
+def _waiting_feedback_reasons(task: _YamlRecord) -> list[str]:
+    data = task.data or {}
+    reasons: list[str] = []
+    stage = str(data.get("stage", "")).strip()
+    if stage == "verification_pending":
+        reasons.append("verification_pending")
+    handoff = data.get("handoff", {})
+    if isinstance(handoff, dict):
+        handoff_status = str(handoff.get("status", "")).strip()
+        if handoff_status == "waiting_user_validation":
+            reasons.append("waiting_user_validation")
+    return reasons
 
 
 def _blocked_task_lines(tasks: list[_YamlRecord]) -> list[str]:

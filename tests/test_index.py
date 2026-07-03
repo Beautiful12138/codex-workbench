@@ -229,15 +229,16 @@ def test_generate_index_views_rebuilds_generated_outputs_without_source_writes(t
     assert "DEC-001" in index_text
     assert "SUS-001" in index_text
     assert "## 可续接任务" in recovery_text
+    assert "## 等待反馈" in recovery_text
     assert "生成的续接队列；真实工作现场以 task context、任务包和命令输出为准。" in recovery_text
     assert "- [生成索引](docs/active/REQ-20260702-001-TASK-20260702-001/task.yaml) [in_progress]" in recovery_text
     assert "  - 需求：[构建 Workbench](docs/active/REQ-20260702-001/requirement.yaml)" in recovery_text
-    assert "  - 服务 refs：`codex-workbench`" in recovery_text
+    assert "  - 等待：waiting_user_validation" in recovery_text
     assert "## Requirements" not in recovery_text
     assert "## Latest Evidence" not in recovery_text
     assert "task `REQ-20260702-001-TASK-20260702-001` 生成索引" not in recovery_text
     assert "impact=code_change local data=none" not in recovery_text
-    assert "  - 风险缺口：none" in recovery_text
+    assert "  - 风险缺口：none" not in recovery_text
     assert "full evidence body must stay out" not in recovery_text
     assert "D:/private/raw/philosophy.md" not in index_text
     assert source_yaml.read_text(encoding="utf-8") == before_source
@@ -314,6 +315,40 @@ def test_current_view_keeps_waiting_feedback_out_of_recent_actionable_limit(tmp_
     assert "可推进任务 6" not in actionable_section
     assert "还有 1 个可推进任务未展示" in actionable_section
     assert "waiting_user_validation" in waiting_section or "partial" in waiting_section
+
+
+def test_recovery_view_groups_waiting_feedback_separately(tmp_path: Path) -> None:
+    create_full_index_fixture(tmp_path)
+    requirement_yaml = tmp_path / "docs" / "active" / "REQ-20260702-001" / "requirement.yaml"
+    requirement = yaml.safe_load(requirement_yaml.read_text(encoding="utf-8"))
+    requirement["task_refs"].append("REQ-20260702-001-TASK-20260702-002")
+    requirement_yaml.write_text(
+        yaml.safe_dump(requirement, allow_unicode=True, sort_keys=False),
+        encoding="utf-8",
+    )
+    write_yaml(
+        tmp_path / "docs" / "active" / "REQ-20260702-001-TASK-20260702-002" / "task.yaml",
+        {
+            "schema_version": "0.1",
+            "id": "REQ-20260702-001-TASK-20260702-002",
+            "requirement_id": "REQ-20260702-001",
+            "title": "继续实现",
+            "stage": "in_progress",
+            "updated_at": "2026-07-01T11:00:00+08:00",
+            "validation": {"status": "partial"},
+        },
+    )
+
+    result = generate_index_views(tmp_path, dry_run=True)
+    actionable_section = markdown_section(result.recovery_text, "## 可续接任务", "## 等待反馈")
+    waiting_section = markdown_section(result.recovery_text, "## 等待反馈", "## 阻塞或异常")
+
+    assert "继续实现" in actionable_section
+    assert "生成索引" not in actionable_section
+    assert "生成索引" in waiting_section
+    assert "继续实现" not in waiting_section
+    assert "等待：waiting_user_validation" in waiting_section
+    assert "验证：passed" in waiting_section
 
 
 def test_generate_index_views_dry_run_does_not_write_generated_files(tmp_path: Path) -> None:
@@ -550,8 +585,8 @@ def test_recovery_view_is_bounded_and_uses_material_output_allowlist(tmp_path: P
 
     result = generate_index_views(tmp_path, dry_run=True)
 
-    assert len(result.recovery_text.splitlines()) <= 35
-    assert "and 8 more active tasks" in result.recovery_text
+    assert len(result.recovery_text.splitlines()) <= 40
+    assert "and 7 more actionable tasks" in result.recovery_text
     assert "token=abc123" not in result.index_text
     assert "[redacted]" in result.index_text
 
@@ -592,7 +627,7 @@ def test_recovery_blocked_section_scans_all_active_tasks(tmp_path: Path) -> None
     result = generate_index_views(tmp_path, dry_run=True)
 
     assert "- [任务 4](docs/active/REQ-20260702-001-TASK-20260702-004/task.yaml) [in_progress]" not in result.recovery_text
-    assert "and 2 more active tasks" in result.recovery_text
+    assert "and 2 more actionable tasks" in result.recovery_text
     assert "## 阻塞或异常" in result.recovery_text
     assert "- [任务 4](docs/active/REQ-20260702-001-TASK-20260702-004/task.yaml)：等待外部确认。" in result.recovery_text
 
