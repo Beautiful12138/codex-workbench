@@ -57,9 +57,9 @@ def session_start_context(root: Path | None) -> str:
         return ""
     return "\n".join(
         [
-            "Workbench：优先用 workspace context 接住现场；CURRENT/recovery/index 只辅助定位，不是真源。",
-            "讨论/只读探索不写状态；选中正式 task、写状态、推进阶段或声明完成时，再打开任务包和 CLI。",
-            "先校验再配合：多思考一步，用户方向不自动等于事实正确。",
+            "Workbench：先接住用户要做什么，再用 workspace context 看现场；CURRENT/recovery/index 只辅助定位，不是真源。",
+            "讨论/只读探索不写状态；只有选中正式 task、写状态、推进阶段或声明完成时，再打开任务包和 CLI。",
+            "先校验再配合：多思考一步，发现事实或风险不合时，简短提醒并给出更稳路径。",
         ]
     )
 
@@ -69,8 +69,8 @@ def user_prompt_context(root: Path | None) -> str:
         return ""
     return "\n".join(
         [
-            "Workbench 提醒：默认讨论/聊天/只读探索不写状态；改代码、写状态、碰外部影响或声明完成前，再打开任务规则和 CLI。",
-            "先校验再配合：多思考一步，用户方向不自动等于事实正确；发现事实、风险或规则冲突时，简短提醒并给出更稳路径。",
+            "Workbench 提醒：默认讨论/聊天/只读探索不写状态；要改代码、写状态、碰外部影响或声明完成时，再打开任务规则和 CLI。",
+            "先校验再配合：多思考一步，用户方向不自动等于事实正确；不合适时温和指出，并给出更稳路径。",
         ]
     )
 

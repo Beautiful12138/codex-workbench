@@ -189,7 +189,6 @@ def test_agents_md_is_a_short_routing_card() -> None:
     assert "## 协作判断" in agents_text
     assert "先校验再配合" in agents_text
     assert "多思考一步" in agents_text
-    assert "## 必读触发器" in agents_text
     assert "## 按场景读取" in agents_text
     assert "workbench-resume" in agents_text
     assert "workbench-cli" in agents_text
@@ -220,13 +219,17 @@ def test_runtime_guidance_routes_empty_baseline_and_self_maintenance() -> None:
     assert "baseline" in agents_text
     assert "codex-workbench 自身" in agents_text
     assert "maintenance_action" in agents_text
-    assert "只要要写状态、推进阶段、生成视图、检查状态、归档" in agents_text
+    assert "写状态" in agents_text
+    assert "推进阶段" in agents_text
+    assert "归档" in agents_text
+    assert "workbench-cli" in agents_text
 
     assert "baseline，且没有 active requirement/task" in resume_skill
     assert "用户问下一步" in resume_skill
     assert "2-3 个可选入口" in resume_skill
     assert "不主动创建任务" in resume_skill
-    assert "先检查是否需要 `workbench-cli`" in resume_skill
+    assert "写状态" in resume_skill
+    assert "workbench-cli" in resume_skill
     assert "codex-workbench 自身" in resume_skill
 
     assert "Workbench 自身维护" in action_policy

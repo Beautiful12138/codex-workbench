@@ -1,18 +1,20 @@
 # Codex Workbench 入口地图
 
-本文件是每次进入 Workbench 时读取的最小路由卡。它只负责说明“先读什么、遇到什么用哪个 skill、哪些真源不能被覆盖”。完整规则在 policy 和 skill 中。
+本文件是每次进入 Workbench 时读取的最小路由卡。它帮助 Codex 先接住用户要做什么，再决定要不要展开规则、skill 和包细节。完整规则在 policy 和 skill 中。
 
 `codex-workbench` 是个人本地多项目工程协作工作台，用于让 Codex 在多个需求、多个任务、多个服务之间稳定工作。
 
-## 启动读取顺序
+## 进入时
 
-1. `AGENTS.md`
-2. 在本源码仓库运行 CLI 前设置 `$env:PYTHONPATH='src'`，再优先运行 `python -m codex_workbench workspace context --workspace-root .`
-3. 用户明确给出的路径、需求/任务名称、ID、服务名或环境资料
-4. 选中 task 后先用 `task context <任务名或ID>`；涉及服务先用 `service context <服务名>`
-5. 需要写状态、看细节或处理门禁时，再读对应 requirement / task 包 YAML、Markdown、policy、skill、`services/registry.yaml`、`environments/` 或 `docs/archive/`
+先接住用户要做什么：是在聊天、只读探索、小修、推进正式任务，还是涉及环境/数据/部署。先看现场，再决定要不要展开规则。
 
-默认路径：workspace context -> task context -> service context -> task package。`workspace context` 默认只做轻量服务概览，不深扫服务路径/Git；需要服务现场时再点名 `service context <服务名>` 或显式 `workspace context --check-services`。普通讨论和只读探索默认不写状态。生成视图只用于定位和恢复，不能覆盖包 YAML 真源。
+1. 读 `AGENTS.md`。
+2. 在本源码仓库运行 CLI 前设置 `$env:PYTHONPATH='src'`，再优先运行 `python -m codex_workbench workspace context --workspace-root .`。
+3. 结合用户明确给出的路径、需求/任务名称、ID、服务名或环境资料，判断当前工作对象。
+4. 选中 task 后先用 `task context <任务名或ID>`；涉及服务先用 `service context <服务名>`。
+5. 只有需要写状态、看细节或处理门禁时，再读对应 requirement / task 包 YAML、Markdown、policy、skill、`services/registry.yaml`、`environments/` 或 `docs/archive/`。
+
+默认路径：workspace context -> task context -> service context -> task package。`workspace context` 默认只做轻量服务概览，不深扫服务路径/Git；需要服务现场时再点名 `service context <服务名>` 或显式 `workspace context --check-services`。普通讨论、解释和只读探索，不为了留痕而写状态。生成视图只用于定位和恢复，不能覆盖包 YAML 真源。
 
 ## 协作判断
 
@@ -20,9 +22,9 @@
 
 执行前多思考一步：用真实文件、命令输出、YAML 真源、项目规则和风险公式核对事实、目标、影响和风险。若方向成立，说明依据后执行；若不成立或不完整，简短指出问题并给出更稳路径。
 
-## 必读触发器
+## 需要展开的场景
 
-- 只要要写状态、推进阶段、生成视图、检查状态、归档，或不确定 CLI 怎么做：必须先读 `workbench-cli`，执行前用 `python -m codex_workbench <group> <command> --help` 核对。
+- 要写状态、推进阶段、生成视图、检查状态、归档，或不确定 CLI 怎么做：读 `workbench-cli`，执行前用 `python -m codex_workbench <group> <command> --help` 核对。
 - 空工作台、baseline、没有 active requirement/task、用户问下一步：读 `workbench-resume`；只给可选入口，不主动创建任务。
 - 用户明确要求修改 codex-workbench 自身、维护本仓库、调整规则/skill/CLI/测试：默认走 `maintenance_action` / repo maintenance；不强制创建 requirement/task。
 - 用户明确授权的小型低风险修改：先按风险公式判断；影响清楚、可本地验证、可回滚时走 `small-fix`，不自动创建正式 task。
