@@ -528,10 +528,58 @@ def test_archive_version_rolls_back_moved_packages_when_move_fails(
             requirement_ids=["REQ-20260702-001"],
             archive_authorization_note="用户确认版本可以归档。",
             archived_at="2026-07-01",
-        )
+    )
 
     assert exc_info.value.code is ErrorCode.IO_ERROR
     assert "archive_write_failed" in exc_info.value.message
     assert (tmp_path / "docs" / "active" / "REQ-20260702-001" / "requirement.yaml").exists()
     assert (tmp_path / "docs" / "active" / "REQ-20260702-001-TASK-20260702-001" / "task.yaml").exists()
     assert not (tmp_path / "docs" / "archive" / "1.0.0" / "archive.yaml").exists()
+
+
+def test_archive_version_rejects_concurrent_manifest_without_deleting_it(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    create_workspace(tmp_path)
+    write_closed_requirement(tmp_path)
+    write_done_task(tmp_path)
+    import codex_workbench.archive as archive_module
+
+    original_write = archive_module.write_yaml_atomic
+    concurrent_manifest = tmp_path / "docs" / "archive" / "1.0.0" / "archive.yaml"
+
+    def racing_manifest_write(path: Path, payload: dict, **kwargs: object) -> None:
+        if path == concurrent_manifest:
+            write_yaml(
+                concurrent_manifest,
+                {
+                    "schema_version": "0.1",
+                    "version": "1.0.0",
+                    "archived_at": "2026-07-01",
+                    "requirement_ids": ["REQ-OTHER"],
+                    "authorization": {
+                        "type": "archive_authorization",
+                        "source": "user",
+                        "note": "其他窗口已归档。",
+                    },
+                    "entries": [],
+                },
+            )
+        original_write(path, payload, **kwargs)
+
+    monkeypatch.setattr(archive_module, "write_yaml_atomic", racing_manifest_write)
+
+    with pytest.raises(WorkbenchError) as exc_info:
+        archive_version(
+            tmp_path,
+            version="1.0.0",
+            requirement_ids=["REQ-20260702-001"],
+            archive_authorization_note="用户确认版本可以归档。",
+            archived_at="2026-07-01",
+        )
+
+    assert exc_info.value.code is ErrorCode.ALREADY_EXISTS
+    assert (tmp_path / "docs" / "active" / "REQ-20260702-001" / "requirement.yaml").exists()
+    assert (tmp_path / "docs" / "active" / "REQ-20260702-001-TASK-20260702-001" / "task.yaml").exists()
+    assert yaml.safe_load(concurrent_manifest.read_text(encoding="utf-8"))["requirement_ids"] == ["REQ-OTHER"]

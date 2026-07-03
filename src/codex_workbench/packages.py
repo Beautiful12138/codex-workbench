@@ -7,7 +7,13 @@ import yaml
 from pydantic import ValidationError
 
 from .errors import ErrorCode, WorkbenchError
-from .io import read_yaml, write_text_utf8_atomic, write_yaml_atomic
+from .io import (
+    read_yaml,
+    read_yaml_with_version,
+    rollback_text_files_if_unchanged,
+    write_text_utf8_atomic,
+    write_yaml_atomic,
+)
 from .lifecycle import evaluate_task_transition, requirement_allows_formal_task
 from .models import BlockedBy, ConfirmationType, RequirementState, TaskStage, TaskState
 from .refs import validate_package_ref
@@ -45,6 +51,7 @@ class TaskStageCheckResult:
 class RequirementTaskRefUpdate:
     path: Path
     data: dict
+    version: str
 
 
 def create_requirement_package(
@@ -102,9 +109,18 @@ def create_task_package(
     TaskState.model_validate(task_yaml)
     result = write_package_files(workspace_root, files, dry_run=dry_run, overwrite=overwrite)
     try:
-        write_yaml_atomic(requirement_update.path, requirement_update.data, dry_run=dry_run)
+        write_yaml_atomic(
+            requirement_update.path,
+            requirement_update.data,
+            dry_run=dry_run,
+            expected_version=requirement_update.version,
+        )
     except WorkbenchError:
-        _rollback_created_files(result.paths, dry_run=dry_run)
+        _rollback_created_files(
+            result.paths,
+            dry_run=dry_run,
+            expected_contents=_expected_file_contents(root, files),
+        )
         raise
     return PackageWriteResult(
         paths=(*result.paths, requirement_update.path),
@@ -138,7 +154,8 @@ def close_requirement(
             exit_code=2,
         )
 
-    data = read_yaml(path)
+    snapshot = read_yaml_with_version(path)
+    data = snapshot.data
     requirement = RequirementState.model_validate(data)
     if requirement.id != clean_requirement_id:
         raise WorkbenchError(
@@ -171,7 +188,7 @@ def close_requirement(
         )
     data["updated_at"] = resolve_timestamp(updated_at)
     RequirementState.model_validate(data)
-    write_yaml_atomic(path, data, dry_run=dry_run)
+    write_yaml_atomic(path, data, dry_run=dry_run, expected_version=snapshot.version)
     return PackageWriteResult(paths=(path,), dry_run=dry_run)
 
 
@@ -183,12 +200,12 @@ def update_task_packet(
     updated_at: str | None = None,
     dry_run: bool = False,
 ) -> PackageWriteResult:
-    root, task_yaml, data, task = _load_task_package(workspace_root, task_id)
+    root, task_yaml, data, task, version = _load_task_package(workspace_root, task_id)
     clean_next_step = _clean_required(next_step, "missing_next_step")
     data["next_step"] = clean_next_step
     data["updated_at"] = resolve_timestamp(updated_at)
     TaskState.model_validate(data)
-    write_yaml_atomic(task_yaml, data, dry_run=dry_run)
+    write_yaml_atomic(task_yaml, data, dry_run=dry_run, expected_version=version)
     return PackageWriteResult(paths=(task_yaml,), dry_run=dry_run)
 
 
@@ -202,7 +219,8 @@ def set_task_stage(
 ) -> PackageWriteResult:
     root = Path(workspace_root).expanduser().resolve()
     task_yaml = _package_file(root, "docs/active", task_id, "task.yaml")
-    data = read_yaml(task_yaml)
+    snapshot = read_yaml_with_version(task_yaml)
+    data = snapshot.data
     task = TaskState.model_validate(data)
     if task.id != task_id:
         raise WorkbenchError(
@@ -236,7 +254,7 @@ def set_task_stage(
 
     data["stage"] = target_stage.value
     data["updated_at"] = resolve_timestamp(updated_at)
-    write_yaml_atomic(task_yaml, data, dry_run=dry_run)
+    write_yaml_atomic(task_yaml, data, dry_run=dry_run, expected_version=snapshot.version)
     return PackageWriteResult(paths=(task_yaml,), dry_run=dry_run)
 
 
@@ -245,7 +263,7 @@ def check_task_stage(
     task_id: str,
     stage: str,
 ) -> TaskStageCheckResult:
-    root, _, _, task = _load_task_package(workspace_root, task_id)
+    root, _, _, task, _ = _load_task_package(workspace_root, task_id)
     try:
         target_stage = TaskStage(stage)
     except ValueError as exc:
@@ -298,7 +316,7 @@ def prepare_task(
     updated_at: str | None = None,
     dry_run: bool = False,
 ) -> PackageWriteResult:
-    root, task_yaml, data, task = _load_task_package(workspace_root, task_id)
+    root, task_yaml, data, task, version = _load_task_package(workspace_root, task_id)
     scope = _clean_required_list(working_scope, "missing_working_scope")
 
     implementation = data.setdefault("implementation", {})
@@ -371,7 +389,7 @@ def prepare_task(
             f"task_id_mismatch: expected={task_id} actual={task.id}",
             exit_code=2,
         )
-    write_yaml_atomic(task_yaml, data, dry_run=dry_run)
+    write_yaml_atomic(task_yaml, data, dry_run=dry_run, expected_version=version)
     return PackageWriteResult(paths=(task_yaml,), dry_run=dry_run)
 
 
@@ -387,7 +405,7 @@ def update_task_impact(
     updated_at: str | None = None,
     dry_run: bool = False,
 ) -> PackageWriteResult:
-    root, task_yaml, data, task = _load_task_package(workspace_root, task_id)
+    root, task_yaml, data, task, version = _load_task_package(workspace_root, task_id)
     _apply_task_impact_update(
         data,
         process_level=process_level,
@@ -405,7 +423,7 @@ def update_task_impact(
             f"task_id_mismatch: expected={task_id} actual={task.id}",
             exit_code=2,
         )
-    write_yaml_atomic(task_yaml, data, dry_run=dry_run)
+    write_yaml_atomic(task_yaml, data, dry_run=dry_run, expected_version=version)
     return PackageWriteResult(paths=(task_yaml,), dry_run=dry_run)
 
 
@@ -416,7 +434,7 @@ def create_task_review_document(
     updated_at: str | None = None,
     dry_run: bool = False,
 ) -> PackageWriteResult:
-    root, task_yaml, data, task = _load_task_package(workspace_root, task_id)
+    root, task_yaml, data, task, version = _load_task_package(workspace_root, task_id)
     context = TaskDocumentTemplateContext(task_id=task.id)
     files = render_review_document(context)
     review = data.setdefault("review", {})
@@ -433,9 +451,13 @@ def create_task_review_document(
     TaskState.model_validate(data)
     result = write_package_files(root, files, dry_run=dry_run)
     try:
-        write_yaml_atomic(task_yaml, data, dry_run=dry_run)
+        write_yaml_atomic(task_yaml, data, dry_run=dry_run, expected_version=version)
     except WorkbenchError:
-        _rollback_created_files(result.paths, dry_run=dry_run)
+        _rollback_created_files(
+            result.paths,
+            dry_run=dry_run,
+            expected_contents=_expected_file_contents(root, files),
+        )
         raise
     return PackageWriteResult(paths=(*result.paths, task_yaml), dry_run=dry_run)
 
@@ -447,7 +469,7 @@ def create_task_implementation_document(
     updated_at: str | None = None,
     dry_run: bool = False,
 ) -> PackageWriteResult:
-    root, task_yaml, data, task = _load_task_package(workspace_root, task_id)
+    root, task_yaml, data, task, version = _load_task_package(workspace_root, task_id)
     context = TaskDocumentTemplateContext(task_id=task.id)
     files = render_implementation_document(context)
     implementation = data.setdefault("implementation", {})
@@ -462,9 +484,13 @@ def create_task_implementation_document(
     TaskState.model_validate(data)
     result = write_package_files(root, files, dry_run=dry_run)
     try:
-        write_yaml_atomic(task_yaml, data, dry_run=dry_run)
+        write_yaml_atomic(task_yaml, data, dry_run=dry_run, expected_version=version)
     except WorkbenchError:
-        _rollback_created_files(result.paths, dry_run=dry_run)
+        _rollback_created_files(
+            result.paths,
+            dry_run=dry_run,
+            expected_contents=_expected_file_contents(root, files),
+        )
         raise
     return PackageWriteResult(paths=(*result.paths, task_yaml), dry_run=dry_run)
 
@@ -480,7 +506,7 @@ def block_task(
     updated_at: str | None = None,
     dry_run: bool = False,
 ) -> PackageWriteResult:
-    root, task_yaml, data, task = _load_task_package(workspace_root, task_id)
+    root, task_yaml, data, task, version = _load_task_package(workspace_root, task_id)
     try:
         blocked_by_value = BlockedBy(blocked_by)
     except ValueError as exc:
@@ -521,7 +547,7 @@ def block_task(
     )
     data["stage"] = TaskStage.BLOCKED.value
     data["updated_at"] = resolve_timestamp(updated_at)
-    write_yaml_atomic(task_yaml, data, dry_run=dry_run)
+    write_yaml_atomic(task_yaml, data, dry_run=dry_run, expected_version=version)
     return PackageWriteResult(paths=(task_yaml,), dry_run=dry_run)
 
 
@@ -533,7 +559,7 @@ def obsolete_task(
     updated_at: str | None = None,
     dry_run: bool = False,
 ) -> PackageWriteResult:
-    root, task_yaml, data, task = _load_task_package(workspace_root, task_id)
+    root, task_yaml, data, task, version = _load_task_package(workspace_root, task_id)
     data["obsolete_reason"] = _clean_required(reason, "missing_obsolete_reason")
     task = TaskState.model_validate(data)
     check = evaluate_task_transition(task, TaskStage.OBSOLETE)
@@ -546,7 +572,7 @@ def obsolete_task(
         )
     data["stage"] = TaskStage.OBSOLETE.value
     data["updated_at"] = resolve_timestamp(updated_at)
-    write_yaml_atomic(task_yaml, data, dry_run=dry_run)
+    write_yaml_atomic(task_yaml, data, dry_run=dry_run, expected_version=version)
     return PackageWriteResult(paths=(task_yaml,), dry_run=dry_run)
 
 
@@ -580,8 +606,16 @@ def write_package_files(
                 exit_code=2,
             )
 
-    for path, content in targets:
-        write_text_utf8_atomic(path, content, dry_run=dry_run)
+    written_contents: dict[Path, str] = {}
+    try:
+        for path, content in targets:
+            existed_before_write = path.exists()
+            write_text_utf8_atomic(path, content, dry_run=dry_run, create_only=not overwrite)
+            if not existed_before_write:
+                written_contents[path] = content
+    except WorkbenchError:
+        rollback_text_files_if_unchanged(written_contents, dry_run=dry_run)
+        raise
 
     return PackageWriteResult(paths=tuple(path for path, _ in targets), dry_run=dry_run)
 
@@ -614,11 +648,12 @@ def _package_file(root: Path, base: str, package_id: str, filename: str) -> Path
 def _load_task_package(
     workspace_root: str | Path,
     task_id: str,
-) -> tuple[Path, Path, dict, TaskState]:
+) -> tuple[Path, Path, dict, TaskState, str]:
     clean_task_id = validate_package_ref(task_id)
     root = Path(workspace_root).expanduser().resolve()
     task_yaml = _package_file(root, "docs/active", clean_task_id, "task.yaml")
-    data = read_yaml(task_yaml)
+    snapshot = read_yaml_with_version(task_yaml)
+    data = snapshot.data
     task = TaskState.model_validate(data)
     if task.id != clean_task_id:
         raise WorkbenchError(
@@ -626,7 +661,7 @@ def _load_task_package(
             f"task_id_mismatch: expected={clean_task_id} actual={task.id}",
             exit_code=2,
         )
-    return root, task_yaml, data, task
+    return root, task_yaml, data, task, snapshot.version
 
 
 def _clean_required(value: str, reason_code: str) -> str:
@@ -764,7 +799,8 @@ def _prepare_requirement_task_ref_update(
             f"missing_requirement_package: {clean_requirement_id}",
             exit_code=2,
         )
-    data = read_yaml(requirement_yaml)
+    snapshot = read_yaml_with_version(requirement_yaml)
+    data = snapshot.data
     try:
         requirement = RequirementState.model_validate(data)
     except (ValidationError, WorkbenchError) as exc:
@@ -797,11 +833,23 @@ def _prepare_requirement_task_ref_update(
     if clean_task_id not in task_refs:
         task_refs.append(clean_task_id)
     RequirementState.model_validate(data)
-    return RequirementTaskRefUpdate(path=requirement_yaml, data=data)
+    return RequirementTaskRefUpdate(path=requirement_yaml, data=data, version=snapshot.version)
 
 
-def _rollback_created_files(paths: tuple[Path, ...], *, dry_run: bool) -> None:
+def _expected_file_contents(root: Path, files: dict[str, str]) -> dict[Path, str]:
+    return {(root / rel_path): content for rel_path, content in files.items()}
+
+
+def _rollback_created_files(
+    paths: tuple[Path, ...],
+    *,
+    dry_run: bool,
+    expected_contents: dict[Path, str] | None = None,
+) -> None:
     if dry_run:
+        return
+    if expected_contents is not None:
+        rollback_text_files_if_unchanged(expected_contents, dry_run=dry_run)
         return
     parents = []
     for path in reversed(paths):

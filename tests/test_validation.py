@@ -5,7 +5,9 @@ from pathlib import Path
 import pytest
 import yaml
 
+import codex_workbench.validation as validation_module
 from codex_workbench.errors import ErrorCode, WorkbenchError
+from codex_workbench.io import read_yaml_with_version, write_yaml_atomic
 from codex_workbench.models import EvidenceState
 from codex_workbench.packages import set_task_stage
 from codex_workbench.schema import CURRENT_SCHEMA_VERSION
@@ -129,6 +131,75 @@ def test_create_evidence_record_rejects_process_status_as_conclusion(
     assert f"invalid_evidence_conclusion: {conclusion}" in exc_info.value.message
 
 
+def test_create_evidence_record_rejects_concurrent_existing_evidence_file(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    create_workspace(tmp_path)
+    write_task(tmp_path)
+    original_write = validation_module.write_text_utf8_atomic
+    injected = False
+
+    def racing_write(path: Path, content: str, **kwargs: object) -> None:
+        nonlocal injected
+        if not injected and path.name == "evidence.yaml":
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(
+                "schema_version: '0.1'\nid: EV-OTHER\ntask_id: REQ-20260702-001-TASK-20260702-001\n"
+                "conclusion: passed\nkey_outputs:\n- other\n",
+                encoding="utf-8",
+            )
+            injected = True
+        original_write(path, content, **kwargs)
+
+    monkeypatch.setattr(validation_module, "write_text_utf8_atomic", racing_write)
+
+    with pytest.raises(WorkbenchError) as exc_info:
+        create_evidence_record(
+            tmp_path,
+            evidence_id="EV-REQ-20260702-001-TASK-20260702-001",
+            task_id="REQ-20260702-001-TASK-20260702-001",
+            conclusion="passed",
+            key_outputs=["python -m pytest passed"],
+            updated_at="2026-07-01",
+        )
+
+    assert exc_info.value.code is ErrorCode.ALREADY_EXISTS
+
+
+def test_create_evidence_record_rolls_back_yaml_when_markdown_conflicts(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    create_workspace(tmp_path)
+    write_task(tmp_path)
+    original_write = validation_module.write_text_utf8_atomic
+    evidence_yaml = tmp_path / "docs" / "active" / "REQ-20260702-001-TASK-20260702-001" / "evidence.yaml"
+    evidence_md = tmp_path / "docs" / "active" / "REQ-20260702-001-TASK-20260702-001" / "evidence.md"
+
+    def fail_on_markdown(path: Path, content: str, **kwargs: object) -> None:
+        if path == evidence_md:
+            evidence_md.write_text("其他窗口创建了 evidence.md。\n", encoding="utf-8")
+            raise WorkbenchError(ErrorCode.ALREADY_EXISTS, "already_exists", exit_code=2)
+        original_write(path, content, **kwargs)
+
+    monkeypatch.setattr(validation_module, "write_text_utf8_atomic", fail_on_markdown)
+
+    with pytest.raises(WorkbenchError) as exc_info:
+        create_evidence_record(
+            tmp_path,
+            evidence_id="EV-REQ-20260702-001-TASK-20260702-001",
+            task_id="REQ-20260702-001-TASK-20260702-001",
+            conclusion="passed",
+            key_outputs=["python -m pytest passed"],
+            updated_at="2026-07-01",
+        )
+
+    assert exc_info.value.code is ErrorCode.ALREADY_EXISTS
+    assert not evidence_yaml.exists()
+    assert evidence_md.read_text(encoding="utf-8") == "其他窗口创建了 evidence.md。\n"
+
+
 @pytest.mark.parametrize("bad_ref", [".", "../archive/REQ-20260702-001-TASK-20260702-001", "TASK/001", " REQ-20260702-001-TASK-20260702-001"])
 def test_evidence_refs_cannot_escape_active_package(tmp_path: Path, bad_ref: str) -> None:
     create_workspace(tmp_path)
@@ -174,6 +245,41 @@ def test_apply_validation_writes_task_validation_from_real_evidence(tmp_path: Pa
         "evidence_ref": "EV-REQ-20260702-001-TASK-20260702-001",
         "unverified_items": [],
     }
+
+
+def test_apply_validation_rejects_stale_task_yaml_snapshot(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    create_workspace(tmp_path)
+    task_yaml = write_task(tmp_path)
+    create_evidence_record(
+        tmp_path,
+        evidence_id="EV-REQ-20260702-001-TASK-20260702-001",
+        task_id="REQ-20260702-001-TASK-20260702-001",
+        conclusion="passed",
+        key_outputs=["python -m pytest passed"],
+        updated_at="2026-07-01",
+    )
+    stale_snapshot = read_yaml_with_version(task_yaml)
+    write_yaml_atomic(task_yaml, {**stale_snapshot.data, "updated_at": "2026-07-02T09:00:00+08:00"})
+
+    def read_stale_snapshot(path: Path):
+        if path == task_yaml:
+            return stale_snapshot
+        return read_yaml_with_version(path)
+
+    monkeypatch.setattr(validation_module, "read_yaml_with_version", read_stale_snapshot)
+
+    with pytest.raises(WorkbenchError) as exc_info:
+        apply_validation(
+            tmp_path,
+            task_id="REQ-20260702-001-TASK-20260702-001",
+            evidence_id="EV-REQ-20260702-001-TASK-20260702-001",
+            status="passed",
+        )
+
+    assert exc_info.value.code is ErrorCode.CONCURRENT_UPDATE
 
 
 def test_apply_validation_rejects_missing_evidence(tmp_path: Path) -> None:
@@ -266,6 +372,33 @@ def test_handoff_status_updates_task_without_changing_validation(tmp_path: Path)
         "status": "waiting_user_validation",
         "note": "等待用户本地验收。",
     }
+
+
+def test_handoff_status_rejects_stale_task_yaml_snapshot(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    create_workspace(tmp_path)
+    task_yaml = write_task(tmp_path)
+    stale_snapshot = read_yaml_with_version(task_yaml)
+    write_yaml_atomic(task_yaml, {**stale_snapshot.data, "updated_at": "2026-07-02T09:00:00+08:00"})
+
+    def read_stale_snapshot(path: Path):
+        if path == task_yaml:
+            return stale_snapshot
+        return read_yaml_with_version(path)
+
+    monkeypatch.setattr(validation_module, "read_yaml_with_version", read_stale_snapshot)
+
+    with pytest.raises(WorkbenchError) as exc_info:
+        set_handoff_status(
+            tmp_path,
+            task_id="REQ-20260702-001-TASK-20260702-001",
+            status="waiting_user_validation",
+            note="等待用户本地验收。",
+        )
+
+    assert exc_info.value.code is ErrorCode.CONCURRENT_UPDATE
 
 
 @pytest.mark.parametrize("status", ["accepted", "rejected"])

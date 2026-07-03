@@ -4,6 +4,10 @@ from pathlib import Path
 
 import yaml
 
+import codex_workbench.services as services_module
+import pytest
+from codex_workbench.errors import ErrorCode, WorkbenchError
+from codex_workbench.io import read_yaml_with_version, write_yaml_atomic
 from codex_workbench.models import ServiceRegistry
 from codex_workbench.services import (
     CommandResult,
@@ -56,6 +60,36 @@ def test_add_service_dry_run_does_not_write_registry(tmp_path: Path) -> None:
 
     assert result.dry_run is True
     assert registry.services == []
+
+
+def test_add_service_rejects_stale_registry_snapshot(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    create_workspace(tmp_path)
+    registry_path = tmp_path / "services" / "registry.yaml"
+    stale_snapshot = read_yaml_with_version(registry_path)
+    write_yaml_atomic(
+        registry_path,
+        {
+            "schema_version": "0.1",
+            "services": [{"name": "api", "local_path": str(tmp_path / "repos" / "api")}],
+        },
+    )
+
+    def read_stale_snapshot(path: Path):
+        if path == registry_path:
+            return stale_snapshot
+        return read_yaml_with_version(path)
+
+    monkeypatch.setattr(services_module, "read_yaml_with_version", read_stale_snapshot)
+
+    with pytest.raises(WorkbenchError) as exc_info:
+        add_service(tmp_path, name="web", local_path=tmp_path / "repos" / "web")
+
+    assert exc_info.value.code is ErrorCode.CONCURRENT_UPDATE
+    registry = read_service_registry(tmp_path)
+    assert [service.name for service in registry.services] == ["api"]
 
 
 def test_service_status_reports_missing_and_non_git_paths(tmp_path: Path) -> None:

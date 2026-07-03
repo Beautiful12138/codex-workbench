@@ -6,7 +6,13 @@ from typing import Any
 from pydantic import ValidationError
 
 from .errors import ErrorCode, WorkbenchError
-from .io import read_yaml, write_text_utf8_atomic, write_yaml_atomic
+from .io import (
+    read_yaml,
+    read_yaml_with_version,
+    rollback_text_files_if_unchanged,
+    write_text_utf8_atomic,
+    write_yaml_atomic,
+)
 from .lifecycle import evaluate_validation_record
 from .models import (
     CURRENT_SCHEMA_VERSION,
@@ -102,8 +108,21 @@ def create_evidence_record(
                     f"already_exists: {path.relative_to(root).as_posix()}",
                     exit_code=2,
                 )
-    for path, content in targets:
-        write_text_utf8_atomic(path, content, dry_run=dry_run)
+    written_contents: dict[Path, str] = {}
+    try:
+        for path, content in targets:
+            existed_before_write = path.exists()
+            write_text_utf8_atomic(
+                path,
+                content,
+                dry_run=dry_run,
+                create_only=not overwrite,
+            )
+            if not existed_before_write:
+                written_contents[path] = content
+    except WorkbenchError:
+        rollback_text_files_if_unchanged(written_contents, dry_run=dry_run)
+        raise
     return ValidationWriteResult(paths=tuple(path for path, _ in targets), dry_run=dry_run)
 
 
@@ -129,7 +148,8 @@ def apply_validation(
         ) from exc
 
     task_yaml = _task_yaml_path(root, task_id)
-    data = read_yaml(task_yaml)
+    snapshot = read_yaml_with_version(task_yaml)
+    data = snapshot.data
     task = _validate_task_data(data, task_id)
     evidence = _read_evidence_for_task(root, task, evidence_id)
     _assert_evidence_conclusion(evidence.conclusion)
@@ -152,7 +172,7 @@ def apply_validation(
         "unverified_items": evidence.unverified_items,
     }
     data["updated_at"] = resolve_timestamp(updated_at)
-    write_yaml_atomic(task_yaml, data, dry_run=dry_run)
+    write_yaml_atomic(task_yaml, data, dry_run=dry_run, expected_version=snapshot.version)
     return ValidationWriteResult(paths=(task_yaml,), dry_run=dry_run)
 
 
@@ -177,7 +197,8 @@ def set_handoff_status(
         ) from exc
 
     task_yaml = _task_yaml_path(root, task_id)
-    data = read_yaml(task_yaml)
+    snapshot = read_yaml_with_version(task_yaml)
+    data = snapshot.data
     _validate_task_data(data, task_id)
     note = note.strip() if note else None
     if handoff_status in HANDOFF_NOTE_REQUIRED and not note:
@@ -191,7 +212,7 @@ def set_handoff_status(
         payload["note"] = note
     data["handoff"] = payload
     data["updated_at"] = resolve_timestamp(updated_at)
-    write_yaml_atomic(task_yaml, data, dry_run=dry_run)
+    write_yaml_atomic(task_yaml, data, dry_run=dry_run, expected_version=snapshot.version)
     return ValidationWriteResult(paths=(task_yaml,), dry_run=dry_run)
 
 

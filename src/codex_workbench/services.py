@@ -8,7 +8,7 @@ from pathlib import Path
 from pathspec import GitIgnoreSpec
 
 from .errors import ErrorCode, WorkbenchError
-from .io import read_yaml, write_yaml_atomic
+from .io import read_yaml, read_yaml_with_version, write_yaml_atomic
 from .models import ServiceEntry, ServiceRegistry
 from .workspace import resolve_workspace_path
 
@@ -104,7 +104,8 @@ def add_service(
     dry_run: bool = False,
 ):
     registry_path = _registry_path(workspace_root)
-    registry = read_service_registry(workspace_root)
+    snapshot = read_yaml_with_version(registry_path)
+    registry = ServiceRegistry.model_validate(snapshot.data)
     _ensure_unique_service_name(registry, name)
 
     entry = ServiceEntry(
@@ -125,6 +126,7 @@ def add_service(
         registry_path,
         updated.model_dump(mode="json", exclude_none=True),
         dry_run=dry_run,
+        expected_version=snapshot.version,
     )
 
 

@@ -7,7 +7,7 @@ import yaml
 from pydantic import ValidationError
 
 from .errors import ErrorCode, WorkbenchError
-from .io import read_yaml, write_yaml_atomic
+from .io import read_yaml, read_yaml_with_version, write_yaml_atomic
 from .models import (
     CURRENT_SCHEMA_VERSION,
     DiscoveryState,
@@ -56,7 +56,15 @@ def add_material(
     dry_run: bool = False,
 ) -> RegistryWriteResult:
     path = _materials_registry_path(workspace_root)
-    registry = read_material_registry(workspace_root)
+    if path.exists():
+        snapshot = read_yaml_with_version(path)
+        registry = MaterialRegistry.model_validate(snapshot.data)
+        expected_version = snapshot.version
+        create_only = False
+    else:
+        registry = MaterialRegistry(schema_version=CURRENT_SCHEMA_VERSION, materials=[])
+        expected_version = None
+        create_only = True
     if any(entry.id == material_id for entry in registry.materials):
         raise WorkbenchError(
             ErrorCode.VALIDATION_ERROR,
@@ -78,7 +86,13 @@ def add_material(
     )
     payload = registry.model_dump(mode="json")
     payload["materials"].append(entry.model_dump(mode="json"))
-    write_yaml_atomic(path, payload, dry_run=dry_run)
+    write_yaml_atomic(
+        path,
+        payload,
+        dry_run=dry_run,
+        expected_version=expected_version,
+        create_only=create_only,
+    )
     return RegistryWriteResult(paths=(path,), dry_run=dry_run)
 
 
@@ -183,7 +197,8 @@ def confirm_intake(
             f"missing_requirement_package: {requirement_id}",
             exit_code=2,
         )
-    data = read_yaml(path)
+    snapshot = read_yaml_with_version(path)
+    data = snapshot.data
     requirement = RequirementState.model_validate(data)
     if requirement.readiness.status is not RequirementReadinessStatus.INTAKE_DRAFT:
         raise WorkbenchError(
@@ -207,7 +222,7 @@ def confirm_intake(
     readiness["material_refs"] = material_refs
     readiness["discovery_refs"] = discovery_refs
     data["updated_at"] = resolve_timestamp(updated_at)
-    write_yaml_atomic(path, data, dry_run=dry_run)
+    write_yaml_atomic(path, data, dry_run=dry_run, expected_version=snapshot.version)
     return RegistryWriteResult(paths=(path,), dry_run=dry_run)
 
 

@@ -7,7 +7,9 @@ import pytest
 from codex_workbench.errors import ErrorCode, WorkbenchError
 from codex_workbench.io import (
     read_text_utf8,
+    read_text_with_version,
     read_yaml,
+    read_yaml_with_version,
     write_text_utf8_atomic,
     write_yaml_atomic,
 )
@@ -62,6 +64,43 @@ def test_yaml_round_trip_preserves_unicode(tmp_path: Path) -> None:
     write_yaml_atomic(target, data)
 
     assert read_yaml(target) == data
+
+
+def test_text_write_rejects_stale_expected_version(tmp_path: Path) -> None:
+    target = tmp_path / "task.yaml"
+    target.write_text("stage: draft\n", encoding="utf-8")
+    snapshot = read_text_with_version(target)
+    target.write_text("stage: ready\n", encoding="utf-8")
+
+    with pytest.raises(WorkbenchError) as exc_info:
+        write_text_utf8_atomic(target, "stage: in_progress\n", expected_version=snapshot.version)
+
+    assert exc_info.value.code.value == "concurrent_update"
+    assert target.read_text(encoding="utf-8") == "stage: ready\n"
+
+
+def test_yaml_write_rejects_stale_expected_version(tmp_path: Path) -> None:
+    target = tmp_path / "task.yaml"
+    write_yaml_atomic(target, {"stage": "draft"})
+    snapshot = read_yaml_with_version(target)
+    write_yaml_atomic(target, {"stage": "ready"})
+
+    with pytest.raises(WorkbenchError) as exc_info:
+        write_yaml_atomic(target, {"stage": "in_progress"}, expected_version=snapshot.version)
+
+    assert exc_info.value.code.value == "concurrent_update"
+    assert read_yaml(target) == {"stage": "ready"}
+
+
+def test_create_only_text_write_rejects_existing_file(tmp_path: Path) -> None:
+    target = tmp_path / "task.md"
+    target.write_text("existing\n", encoding="utf-8")
+
+    with pytest.raises(WorkbenchError) as exc_info:
+        write_text_utf8_atomic(target, "replacement\n", create_only=True)
+
+    assert exc_info.value.code.value == "already_exists"
+    assert target.read_text(encoding="utf-8") == "existing\n"
 
 
 def test_read_text_utf8_reports_structured_io_error(tmp_path: Path) -> None:

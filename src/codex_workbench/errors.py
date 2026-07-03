@@ -8,6 +8,8 @@ class ErrorCode(str, Enum):
     PATH_OUTSIDE_WORKSPACE = "path_outside_workspace"
     PARSE_ERROR = "parse_error"
     VALIDATION_ERROR = "validation_error"
+    CONCURRENT_UPDATE = "concurrent_update"
+    ALREADY_EXISTS = "already_exists"
     IO_ERROR = "io_error"
 
 

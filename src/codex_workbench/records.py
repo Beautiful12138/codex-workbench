@@ -6,7 +6,7 @@ from pathlib import Path
 from pydantic import ValidationError
 
 from .errors import ErrorCode, WorkbenchError
-from .io import write_text_utf8_atomic
+from .io import rollback_text_files_if_unchanged, write_text_utf8_atomic
 from .models import (
     ActionStatus,
     ActionNoteState,
@@ -300,8 +300,21 @@ def _write_record_files(
                     f"already_exists: {path.relative_to(root).as_posix()}",
                     exit_code=2,
                 )
-    for path, content in targets:
-        write_text_utf8_atomic(path, content, dry_run=dry_run)
+    written_contents: dict[Path, str] = {}
+    try:
+        for path, content in targets:
+            existed_before_write = path.exists()
+            write_text_utf8_atomic(
+                path,
+                content,
+                dry_run=dry_run,
+                create_only=not overwrite,
+            )
+            if not existed_before_write:
+                written_contents[path] = content
+    except WorkbenchError:
+        rollback_text_files_if_unchanged(written_contents, dry_run=dry_run)
+        raise
     return RecordWriteResult(paths=tuple(path for path, _ in targets), dry_run=dry_run)
 
 

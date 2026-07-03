@@ -5,7 +5,9 @@ from pathlib import Path
 import pytest
 import yaml
 
+import codex_workbench.packages as packages_module
 from codex_workbench.errors import ErrorCode, WorkbenchError
+from codex_workbench.io import read_yaml_with_version
 from codex_workbench.models import RequirementState, TaskState
 from codex_workbench.packages import (
     block_task,
@@ -17,6 +19,7 @@ from codex_workbench.packages import (
     prepare_task,
     set_task_stage,
     update_task_packet,
+    write_package_files,
 )
 from codex_workbench.templates import RequirementTemplateContext, TaskTemplateContext
 
@@ -115,6 +118,63 @@ def test_create_requirement_package_writes_schema_valid_files(tmp_path: Path) ->
     assert requirement_md in result.paths
     RequirementState.model_validate(yaml.safe_load(requirement_yaml.read_text(encoding="utf-8")))
     assert "## 目标" in requirement_md.read_text(encoding="utf-8")
+
+
+def test_package_creation_rolls_back_first_file_when_second_file_conflicts(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    create_workspace(tmp_path)
+    original_write = packages_module.write_text_utf8_atomic
+    requirement_yaml = tmp_path / "docs" / "active" / "REQ-20260702-001" / "requirement.yaml"
+    requirement_md = tmp_path / "docs" / "active" / "REQ-20260702-001" / "requirement.md"
+
+    def fail_on_markdown(path: Path, content: str, **kwargs: object) -> None:
+        if path == requirement_md:
+            requirement_md.write_text("其他窗口创建了 requirement.md。\n", encoding="utf-8")
+            raise WorkbenchError(ErrorCode.ALREADY_EXISTS, "already_exists", exit_code=2)
+        original_write(path, content, **kwargs)
+
+    monkeypatch.setattr(packages_module, "write_text_utf8_atomic", fail_on_markdown)
+
+    with pytest.raises(WorkbenchError) as exc_info:
+        create_requirement_package(tmp_path, requirement_context())
+
+    assert exc_info.value.code is ErrorCode.ALREADY_EXISTS
+    assert not requirement_yaml.exists()
+    assert requirement_md.read_text(encoding="utf-8") == "其他窗口创建了 requirement.md。\n"
+
+
+def test_package_creation_does_not_delete_overwritten_file_on_later_failure(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    create_workspace(tmp_path)
+    original_write = packages_module.write_text_utf8_atomic
+    first = tmp_path / "docs" / "active" / "REQ-20260702-001" / "first.md"
+    second = tmp_path / "docs" / "active" / "REQ-20260702-001" / "second.md"
+    first.parent.mkdir(parents=True)
+    first.write_text("旧内容。\n", encoding="utf-8")
+
+    def fail_on_second(path: Path, content: str, **kwargs: object) -> None:
+        if path == second:
+            raise WorkbenchError(ErrorCode.ALREADY_EXISTS, "already_exists", exit_code=2)
+        original_write(path, content, **kwargs)
+
+    monkeypatch.setattr(packages_module, "write_text_utf8_atomic", fail_on_second)
+
+    with pytest.raises(WorkbenchError) as exc_info:
+        write_package_files(
+            tmp_path,
+            {
+                "docs/active/REQ-20260702-001/first.md": "新内容。\n",
+                "docs/active/REQ-20260702-001/second.md": "第二份。\n",
+            },
+            overwrite=True,
+        )
+
+    assert exc_info.value.code is ErrorCode.ALREADY_EXISTS
+    assert first.read_text(encoding="utf-8") == "新内容。\n"
 
 
 def test_create_task_package_writes_schema_valid_files_without_empty_ceremony(
@@ -333,6 +393,40 @@ def test_update_task_packet_rejects_empty_next_step(tmp_path: Path) -> None:
     assert "missing_next_step" in exc_info.value.message
 
 
+def test_update_task_packet_rejects_stale_task_yaml_snapshot(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    create_workspace(tmp_path)
+    write_requirement(tmp_path)
+    create_task_package(tmp_path, task_context())
+    task_yaml = tmp_path / "docs" / "active" / "REQ-20260702-001-TASK-20260702-001" / "task.yaml"
+    stale_snapshot = read_yaml_with_version(task_yaml)
+    current_data = dict(stale_snapshot.data)
+    current_data["next_step"] = "另一个会话已经写入。"
+    task_yaml.write_text(
+        yaml.safe_dump(current_data, allow_unicode=True, sort_keys=False),
+        encoding="utf-8",
+    )
+
+    def read_stale_snapshot(path: Path):
+        if path == task_yaml:
+            return stale_snapshot
+        return read_yaml_with_version(path)
+
+    monkeypatch.setattr(packages_module, "read_yaml_with_version", read_stale_snapshot)
+
+    with pytest.raises(WorkbenchError) as exc_info:
+        update_task_packet(
+            tmp_path,
+            "REQ-20260702-001-TASK-20260702-001",
+            next_step="基于旧快照写入。",
+        )
+
+    assert exc_info.value.code is ErrorCode.CONCURRENT_UPDATE
+    assert yaml.safe_load(task_yaml.read_text(encoding="utf-8"))["next_step"] == "另一个会话已经写入。"
+
+
 def test_set_task_stage_updates_yaml_but_rejects_done_without_evidence(tmp_path: Path) -> None:
     create_workspace(tmp_path)
     write_requirement(tmp_path)
@@ -407,6 +501,34 @@ def test_create_task_review_and_implementation_documents_are_package_local(
     assert TaskState.model_validate(task).implementation.ready is False
     assert "## 风险与暂停点" in review_md.read_text(encoding="utf-8")
     assert "## 验证计划" in implementation_md.read_text(encoding="utf-8")
+
+
+def test_review_document_rollback_preserves_concurrently_modified_file(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    create_workspace(tmp_path)
+    write_requirement(tmp_path)
+    create_task_package(tmp_path, task_context(service_refs=[]))
+    review_md = tmp_path / "docs" / "active" / "REQ-20260702-001-TASK-20260702-001" / "review.md"
+    original_write_yaml = packages_module.write_yaml_atomic
+
+    def fail_after_external_review_edit(path: Path, data: object, **kwargs: object) -> None:
+        if path.name == "task.yaml":
+            review_md.write_text("其他窗口已经改过这份 review。\n", encoding="utf-8")
+            raise WorkbenchError(ErrorCode.CONCURRENT_UPDATE, "concurrent_update", exit_code=2)
+        original_write_yaml(path, data, **kwargs)
+
+    monkeypatch.setattr(packages_module, "write_yaml_atomic", fail_after_external_review_edit)
+
+    with pytest.raises(WorkbenchError) as exc_info:
+        create_task_review_document(
+            tmp_path,
+            "REQ-20260702-001-TASK-20260702-001",
+        )
+
+    assert exc_info.value.code is ErrorCode.CONCURRENT_UPDATE
+    assert review_md.read_text(encoding="utf-8") == "其他窗口已经改过这份 review。\n"
 
 
 def test_set_task_stage_in_progress_allows_empty_service_refs(tmp_path: Path) -> None:

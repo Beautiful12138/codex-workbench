@@ -183,9 +183,9 @@ def archive_version(
             entry.archive_path.parent.mkdir(parents=True, exist_ok=True)
             shutil.move(str(entry.source_path), str(entry.archive_path))
             moved_entries.append((entry.archive_path, entry.source_path))
-        write_yaml_atomic(plan.manifest_path, manifest_payload)
+        write_yaml_atomic(plan.manifest_path, manifest_payload, create_only=True)
     except Exception as exc:
-        _rollback_archive_move(moved_entries, plan.manifest_path)
+        _rollback_archive_move(moved_entries)
         if isinstance(exc, WorkbenchError):
             raise
         raise WorkbenchError(
@@ -378,9 +378,7 @@ def _raise_target_exists(root: Path, path: Path) -> None:
     )
 
 
-def _rollback_archive_move(moved_entries: list[tuple[Path, Path]], manifest_path: Path) -> None:
-    if manifest_path.exists():
-        manifest_path.unlink()
+def _rollback_archive_move(moved_entries: list[tuple[Path, Path]]) -> None:
     for archive_path, source_path in reversed(moved_entries):
         if archive_path.exists() and not source_path.exists():
             source_path.parent.mkdir(parents=True, exist_ok=True)
