@@ -99,7 +99,7 @@ def test_version_command_prints_package_name() -> None:
     result = runner.invoke(app, ["version"])
 
     assert result.exit_code == 0
-    assert result.output.strip() == "codex-workbench 0.1.0"
+    assert result.output.strip() == "codex-workbench 1.0.0"
 
 
 def test_cli_entrypoint_is_thin_and_registers_command_modules() -> None:
