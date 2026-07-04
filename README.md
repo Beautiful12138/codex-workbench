@@ -73,10 +73,12 @@ E:\AI\codex-workbench
 进入后你可以直接对 Codex 说：
 
 ```text
-我想在这个仓库使用 Workbench。请先读取 AGENTS.md，确认 CLI、skills、hooks 和夜间 reusable materials 手册是否可用；不要创建任务，也不要改业务代码。
+请阅读 README.md，并按照里面的说明帮我完成 Workbench 初始化。
+
+请先确认 codex-workbench CLI 是否可用、是否需要我信任 hooks、是否需要创建工作日 07:00 的已安排自动化。不要创建任务，也不要改业务代码。
 ```
 
-Codex 会读取 `AGENTS.md`，再按需要使用 Workbench CLI。你不用先背命令。
+Codex 会先读 README，再按需要展开 `AGENTS.md`、skills 和 CLI。你不用先背命令，也不用知道内部文件该按什么顺序读。
 
 如果 Codex Desktop 提示需要信任本仓库的 hooks，这一步需要你在界面里确认。Codex 可以帮你解释 `.codex/hooks.json` 做了什么，但不能替你完成界面授权。当前 hooks 只是轻提醒：讨论/只读探索不写状态，改代码或声明完成前先打开任务规则和 CLI。
 
