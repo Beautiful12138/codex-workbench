@@ -1,6 +1,6 @@
 ---
 name: workbench-task
-description: Use when Codex 需要在 codex-workbench 中处理材料、discovery、intake、requirement、task、阶段推进或任务包边界。
+description: Use when Codex 需要在 codex-workbench 中处理材料、discovery、intake、requirement、task 创建/准备、small-fix、maintenance_action、ephemeral_check、ops_action 边界、风险画像、working_scope 或任务包边界。
 ---
 
 # Workbench Task
@@ -136,7 +136,7 @@ Workbench 的任务包是为了让 Codex 更好地服务需求，不是为了制
 
 `small-fix` 只适用于用户已明确授权、影响面清楚、低风险、可本地验证、可回滚的小型修改。它不能用来绕过风险公式，也不能用来替代产品任务流程。
 
-如果修改影响范围、验收、服务契约、数据、权限、部署、外部系统、共享环境、真实后果，或验证/回滚不清，先按 `risk-and-process.md` 升级为正式 task 或 ops_action。不能用 small-fix 绕过风险公式、用户授权或必要验证。
+如果修改影响范围、验收、服务契约、数据、权限、部署、外部系统、共享环境、真实后果，或验证/回滚不清，先按 `docs/policies/risk-and-process.md` 升级为正式 task 或 ops_action。不能用 small-fix 绕过风险公式、用户授权或必要验证。
 
 ## 不能做的事
 

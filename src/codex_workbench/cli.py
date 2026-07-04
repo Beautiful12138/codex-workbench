@@ -9,6 +9,7 @@ from .cli_commands.index_doctor import doctor_app, index_app
 from .cli_commands.materials import discovery_app, intake_app, material_app
 from .cli_commands.records import action_app, change_app, decision_app, suspicion_app
 from .cli_commands.requirement_task import requirement_app, task_app
+from .cli_commands.reusable import memory_app
 from .cli_commands.schema_workspace import schema_app, workspace_app
 from .cli_commands.services import service_app
 
@@ -32,6 +33,7 @@ app.add_typer(suspicion_app, name="suspicion")
 app.add_typer(index_app, name="index")
 app.add_typer(doctor_app, name="doctor")
 app.add_typer(archive_app, name="archive")
+app.add_typer(memory_app, name="reusable-memory")
 
 
 @app.command()

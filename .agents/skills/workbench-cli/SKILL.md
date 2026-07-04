@@ -1,6 +1,6 @@
 ---
 name: workbench-cli
-description: Use when Codex 需要发现或使用 codex-workbench CLI 命令、写状态、生成/检查视图、确认参数、运行 doctor/index/archive，或不确定应该用哪个 python -m codex_workbench 命令。
+description: Use when Codex 需要发现或核对 codex-workbench CLI 命令、参数、--help、workspace/task/service context、index/doctor/generated views，或准备写状态但不确定命令边界。
 ---
 
 # Workbench CLI

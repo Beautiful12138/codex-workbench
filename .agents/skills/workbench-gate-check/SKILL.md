@@ -1,6 +1,6 @@
 ---
 name: workbench-gate-check
-description: Use when Codex 需要在 codex-workbench 中做阶段推进前自检、运行 task check、判断能否 set-stage 到 in_progress/done/blocked/obsolete，或决定应推进、补资料还是暂停确认。
+description: Use when Codex 需要在 codex-workbench 中做阶段推进前自检、运行 task check、判断能否 set-stage 到 in_progress/verification_pending/done/blocked/obsolete，或决定应推进、补资料还是暂停确认。
 ---
 
 # Workbench Gate Check

@@ -1,6 +1,6 @@
 ---
 name: workbench-resume
-description: Use when Codex 需要恢复 codex-workbench 现场、回答当前状态、选择工作对象或决定读取深度。
+description: Use when Codex 需要恢复 codex-workbench 现场、回答当前状态/下一步/有哪些任务、处理“继续/刚才那个/当前需求”等模糊指代、选择工作对象、普通讨论/只读探索入口或决定读取深度。
 ---
 
 # Workbench Resume

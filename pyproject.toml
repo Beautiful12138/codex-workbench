@@ -28,6 +28,7 @@ dev = [
 
 [project.scripts]
 codex-workbench = "codex_workbench.cli:main"
+reusable-memory = "codex_workbench.cli_commands.reusable:memory_main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/codex_workbench"]

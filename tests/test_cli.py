@@ -120,6 +120,7 @@ def test_cli_entrypoint_is_thin_and_registers_command_modules() -> None:
         "materials",
         "records",
         "requirement_task",
+        "reusable",
         "schema_workspace",
         "services",
     }.issubset(discovered_modules)
@@ -144,6 +145,7 @@ def test_cli_entrypoint_is_thin_and_registers_command_modules() -> None:
         "index",
         "doctor",
         "archive",
+        "reusable-memory",
     }.issubset(registered_groups)
 
 

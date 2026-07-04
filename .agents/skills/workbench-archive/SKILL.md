@@ -1,6 +1,6 @@
 ---
 name: workbench-archive
-description: Use when Codex 需要在 codex-workbench 中关闭 requirement、做 archive preflight、版本归档或按需读取冷历史。
+description: Use when Codex 需要在 codex-workbench 中关闭 requirement、做 archive preflight/version/list、版本归档、查询冷历史，或区分用户验收、需求关闭和归档授权。
 ---
 
 # Workbench Archive

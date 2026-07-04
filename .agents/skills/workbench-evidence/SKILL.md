@@ -1,6 +1,6 @@
 ---
 name: workbench-evidence
-description: Use when Codex 需要在 codex-workbench 中记录 evidence、应用 validation、处理 handoff 或判断任务能否 done。
+description: Use when Codex 需要在 codex-workbench 中记录 evidence、应用 validation、处理 handoff、用户验收、验证通过/失败，或判断 evidence/validation/handoff 是否足以支撑 done，并区分验证事实、doctor、action note 和口头判断。
 ---
 
 # Workbench Evidence

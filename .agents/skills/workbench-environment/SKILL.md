@@ -1,6 +1,6 @@
 ---
 name: workbench-environment
-description: Use when Codex 需要读取或使用 codex-workbench 的 environments/ 环境资料，包括测试环境、服务器、数据库、Redis、MQ、Nacos、GitLab、网站、账号密码、token、联调、部署或外部系统操作方式。
+description: Use when Codex 需要读取或使用 codex-workbench 的 environments/ 环境资料，包括测试/生产环境、服务器、数据库/SQL、Redis、MQ、Nacos、GitLab、网站、账号密码、token、联调、部署、日志或外部系统操作方式。
 ---
 
 # Workbench Environment
@@ -37,7 +37,7 @@ description: Use when Codex 需要读取或使用 codex-workbench 的 environmen
 - 只读查看环境资料不等于授权修改外部环境。
 - 只读查看服务器、日志、进程、容器状态、配置当前值或端口，通常是只读探索或 ephemeral check。
 - 修改服务器、容器、systemd、crontab、K8s、Nacos、DB、Redis、MQ、对象存储、权限、网络、镜像、部署参数或共享运行时状态，需要明确授权。
-- 如果用户请求本身不是产品任务，但会改变外部环境，按 `action-routing` 处理为 maintenance_action 或 ops_action；外部持久变更应记录 action note，临时只读检查不默认落档。
+- 如果用户请求本身不是产品任务，但会改变外部环境，按 `docs/policies/action-routing.md` 处理为 maintenance_action 或 ops_action；外部持久变更应记录 action note，临时只读检查不默认落档。
 - 如果环境操作支撑 task 验证，必须写真实 evidence；action note、口头判断或 doctor clean 不能替代 task evidence。
 
 ## 自动发现线索
