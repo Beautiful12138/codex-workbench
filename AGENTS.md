@@ -8,8 +8,8 @@
 
 先接住用户要做什么：聊天、只读探索、小修、正式任务、环境操作、验证完成、还是归档。先看现场，再决定要不要展开 skill、policy 和包细节。
 
-1. 在本源码仓库运行 CLI 前设置 `$env:PYTHONPATH='src'`。
-2. 优先运行 `python -m codex_workbench workspace context --workspace-root .`。
+1. Workbench CLI 必须来自用户 Python 环境中已安装的 `codex-workbench` 命令；命令不可用时先修复安装或 PATH，不要临时绕过。
+2. 优先运行 `codex-workbench workspace context --workspace-root .`。
 3. 选中 task 后先用 `task context <任务名或ID>`；涉及服务先用 `service context <服务名>`。
 4. 只有需要写状态、看细节或处理门禁时，再读对应 YAML、Markdown、policy、skill、`services/registry.yaml`、`environments/` 或 `docs/archive/`。
 5. 普通讨论、解释和只读探索，不为了留痕而写状态。
@@ -30,7 +30,7 @@
 
 ## 可复用记忆
 
-只在当前任务可能复用历史经验时使用 `python -m codex_workbench reusable-memory find/get`；必要时再打开对应 `docs/reusable/` 维度文件兜底查看。`docs/reusable/` 是派生记忆入口，不是事实真源；高风险、环境、部署、数据、权限或事实冲突时，回到当前代码、环境资料、policy 和真实命令输出核验。
+只在当前任务可能复用历史经验时使用 `codex-workbench reusable-memory find/get`；必要时再打开对应 `docs/reusable/` 维度文件兜底查看。`docs/reusable/` 是派生记忆入口，不是事实真源；高风险、环境、部署、数据、权限或事实冲突时，回到当前代码、环境资料、policy 和真实命令输出核验。
 
 ## 工作对象
 

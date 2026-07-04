@@ -1,6 +1,6 @@
 ---
 name: workbench-task
-description: Use when Codex 需要在 codex-workbench 中处理材料、discovery、intake、requirement、task 创建/准备、small-fix、maintenance_action、ephemeral_check、ops_action 边界、风险画像、working_scope 或任务包边界。
+description: 纳入 Workbench/建需求/建任务/登记 discovery/材料 intake/小修还是正式任务/风险画像/任务边界分类。Use when Codex 需要处理 requirement/task 创建或准备，或判断 small-fix、maintenance_action、ephemeral_check、ops_action、working_scope。
 ---
 
 # Workbench Task
@@ -152,12 +152,11 @@ Workbench 的任务包是为了让 Codex 更好地服务需求，不是为了制
 本 skill 只给出入口，参数用 `workbench-cli` 和 `--help` 核对。
 
 ```powershell
-$env:PYTHONPATH='src'
-python -m codex_workbench workspace context --workspace-root .
-python -m codex_workbench task context "任务名称"
-python -m codex_workbench task create --help
-python -m codex_workbench task prepare --help
-python -m codex_workbench task impact-set --help
-python -m codex_workbench task check --help
-python -m codex_workbench task set-stage --help
+codex-workbench workspace context --workspace-root .
+codex-workbench task context "任务名称"
+codex-workbench task create --help
+codex-workbench task prepare --help
+codex-workbench task impact-set --help
+codex-workbench task check --help
+codex-workbench task set-stage --help
 ```

@@ -218,19 +218,14 @@ Ledger 是夜间流水账，不是白天知识入口，不是状态真源。
 启动方式：
 
 ```powershell
-$env:PYTHONPATH = "src"
-$python = ".\.venv\Scripts\python.exe"
-if (-not (Test-Path $python)) {
-  $python = "D:\develop\Python313\python.exe"
-}
-& $python .\.codex\automations\reusable-materials\reusable_ledger.py --help
+python .\.codex\automations\reusable-materials\reusable_ledger.py --help
 ```
 
 如果 `--help` 失败，停止本次维护，不要修改 `docs/reusable/`。失败原因写入最终响应；如果 handoff 仍可安全写入，可以只写恢复提示。
 
 常用命令：
 
-以下 `python` 表示启动检查里已经通过 `--help` 的解释器；实际运行时优先使用 `$python`。
+以下 `python` 表示用户环境里已安装 Workbench 依赖的 Python，并且已经通过上面的 `--help` 检查。
 
 ```text
 python .codex/automations/reusable-materials/reusable_ledger.py init

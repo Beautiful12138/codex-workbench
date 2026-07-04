@@ -1,6 +1,6 @@
 ---
 name: workbench-environment
-description: Use when Codex 需要读取或使用 codex-workbench 的 environments/ 环境资料，包括测试/生产环境、服务器、数据库/SQL、Redis、MQ、Nacos、GitLab、网站、账号密码、token、联调、部署、日志或外部系统操作方式。
+description: 测试环境/生产环境/环境资料/登服务器/查日志/跑 SQL/账号 token/联调部署。Use when Codex 需要读取 environments/，或动作涉及服务器、数据库、Redis、MQ、Nacos、GitLab、网站、部署、外部系统和敏感操作。
 ---
 
 # Workbench Environment

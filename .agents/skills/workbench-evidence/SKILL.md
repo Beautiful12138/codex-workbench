@@ -1,6 +1,6 @@
 ---
 name: workbench-evidence
-description: Use when Codex 需要在 codex-workbench 中记录 evidence、应用 validation、处理 handoff、用户验收、验证通过/失败，或判断 evidence/validation/handoff 是否足以支撑 done，并区分验证事实、doctor、action note 和口头判断。
+description: 测试跑过了/验证通过或失败/用户验收通过/补 evidence/收尾证据/应用 validation/设置 handoff/证据是否足够支撑 done。Use when Codex 需要记录或判断验证事实、验收、handoff 和完成证据。
 ---
 
 # Workbench Evidence
@@ -90,11 +90,10 @@ task 能 done 必须同时满足：
 ## 常用命令
 
 ```powershell
-$env:PYTHONPATH='src'
-python -m codex_workbench evidence create EV-REQ-20260702-001-TASK-20260702-001 --task-id REQ-20260702-001-TASK-20260702-001 --conclusion passed --key-output "python -m pytest passed" --updated-at "2026-07-02"
-python -m codex_workbench validation apply REQ-20260702-001-TASK-20260702-001 --evidence-id EV-REQ-20260702-001-TASK-20260702-001 --status passed
-python -m codex_workbench handoff set REQ-20260702-001-TASK-20260702-001 --status waiting_user_validation
-python -m codex_workbench handoff set REQ-20260702-001-TASK-20260702-001 --status accepted --note "用户确认验收通过。"
-python -m codex_workbench task check REQ-20260702-001-TASK-20260702-001 --to done
-python -m codex_workbench task set-stage REQ-20260702-001-TASK-20260702-001 --stage done
+codex-workbench evidence create EV-REQ-20260702-001-TASK-20260702-001 --task-id REQ-20260702-001-TASK-20260702-001 --conclusion passed --key-output "python -m pytest passed" --updated-at "2026-07-02"
+codex-workbench validation apply REQ-20260702-001-TASK-20260702-001 --evidence-id EV-REQ-20260702-001-TASK-20260702-001 --status passed
+codex-workbench handoff set REQ-20260702-001-TASK-20260702-001 --status waiting_user_validation
+codex-workbench handoff set REQ-20260702-001-TASK-20260702-001 --status accepted --note "用户确认验收通过。"
+codex-workbench task check REQ-20260702-001-TASK-20260702-001 --to done
+codex-workbench task set-stage REQ-20260702-001-TASK-20260702-001 --stage done
 ```
