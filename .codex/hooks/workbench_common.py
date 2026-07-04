@@ -71,6 +71,7 @@ def user_prompt_context(root: Path | None) -> str:
         [
             "Workbench reminder: chat and read-only exploration do not write status; open task rules/CLI before code changes, status writes, external impact, or completion claims.",
             "Verify before cooperating: the user's direction is not automatically fact; if it does not fit, say so calmly and offer a steadier path.",
+            "If the user clarifies, corrects, discusses, or asks, confirm understanding first; edit assets only after clear authorization.",
         ]
     )
 
