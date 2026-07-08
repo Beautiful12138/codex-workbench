@@ -130,6 +130,73 @@ def add_service(
     )
 
 
+def update_service(
+    workspace_root: str | Path,
+    *,
+    name: str,
+    local_path: str | Path | None = None,
+    purpose: str | None = None,
+    notes: str | None = None,
+    dry_run: bool = False,
+):
+    registry_path = _registry_path(workspace_root)
+    snapshot = read_yaml_with_version(registry_path)
+    registry = ServiceRegistry.model_validate(snapshot.data)
+    target_index = _find_service_index(registry, name)
+    current = registry.services[target_index]
+    if local_path is None and purpose is None and notes is None:
+        raise WorkbenchError(
+            ErrorCode.VALIDATION_ERROR,
+            f"service_update_no_fields: {name}",
+            exit_code=2,
+        )
+
+    updated_entry = ServiceEntry(
+        name=current.name,
+        local_path=str(Path(local_path)) if local_path is not None else current.local_path,
+        purpose=purpose if purpose is not None else current.purpose,
+        notes=notes if notes is not None else current.notes,
+    )
+    services = list(registry.services)
+    services[target_index] = updated_entry
+    updated = ServiceRegistry(
+        schema_version=registry.schema_version,
+        services=services,
+        notes=registry.notes,
+    )
+    return write_yaml_atomic(
+        registry_path,
+        updated.model_dump(mode="json", exclude_none=True),
+        dry_run=dry_run,
+        expected_version=snapshot.version,
+    )
+
+
+def delete_service(
+    workspace_root: str | Path,
+    *,
+    name: str,
+    dry_run: bool = False,
+):
+    registry_path = _registry_path(workspace_root)
+    snapshot = read_yaml_with_version(registry_path)
+    registry = ServiceRegistry.model_validate(snapshot.data)
+    target_index = _find_service_index(registry, name)
+    services = list(registry.services)
+    services.pop(target_index)
+    updated = ServiceRegistry(
+        schema_version=registry.schema_version,
+        services=services,
+        notes=registry.notes,
+    )
+    return write_yaml_atomic(
+        registry_path,
+        updated.model_dump(mode="json", exclude_none=True),
+        dry_run=dry_run,
+        expected_version=snapshot.version,
+    )
+
+
 def service_status(
     workspace_root: str | Path,
     name: str,
@@ -288,15 +355,19 @@ def _ensure_unique_service_name(registry: ServiceRegistry, name: str) -> None:
         )
 
 
-def _find_service(registry: ServiceRegistry, name: str) -> ServiceEntry:
-    for entry in registry.services:
+def _find_service_index(registry: ServiceRegistry, name: str) -> int:
+    for index, entry in enumerate(registry.services):
         if entry.name == name:
-            return entry
+            return index
     raise WorkbenchError(
         ErrorCode.VALIDATION_ERROR,
         f"unknown_service: {name}",
         exit_code=2,
     )
+
+
+def _find_service(registry: ServiceRegistry, name: str) -> ServiceEntry:
+    return registry.services[_find_service_index(registry, name)]
 
 
 def _service_path(workspace_root: str | Path, entry: ServiceEntry) -> Path | None:

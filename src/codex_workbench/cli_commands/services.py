@@ -6,7 +6,15 @@ from pathlib import Path
 import typer
 
 from ..errors import WorkbenchError
-from ..services import ServiceContext, add_service, read_service_registry, service_context, service_status
+from ..services import (
+    ServiceContext,
+    add_service,
+    delete_service,
+    read_service_registry,
+    service_context,
+    service_status,
+    update_service,
+)
 from ..workspace import find_workspace_root
 from .common import (
     _echo_package_result,
@@ -55,6 +63,46 @@ def service_list(
         registry = read_service_registry(root)
         for entry in registry.services:
             typer.echo(f"service {entry.name} {entry.local_path or '<missing-path>'}")
+    except WorkbenchError as exc:
+        _exit_with_workbench_error(exc)
+
+@service_app.command("update")
+def service_update(
+    name: str = typer.Argument(..., help="服务名。"),
+    local_path: Path | None = typer.Option(None, "--path", help="新的服务本地路径。"),
+    purpose: str | None = typer.Option(None, "--purpose", help="新的服务用途说明。"),
+    notes: str | None = typer.Option(None, "--notes", help="新的备注。"),
+    workspace_root: Path = typer.Option(Path("."), "--workspace-root", help="Workbench 根目录。"),
+    dry_run: bool = typer.Option(False, "--dry-run", help="只显示将写入的文件。"),
+) -> None:
+    """更新服务登记。"""
+    try:
+        root = find_workspace_root(workspace_root)
+        result = update_service(
+            root,
+            name=name,
+            local_path=local_path,
+            purpose=purpose,
+            notes=notes,
+            dry_run=dry_run,
+        )
+        _echo_package_result(root, (result.path,), dry_run=dry_run, verb="updated")
+        _refresh_generated_views(root, dry_run=dry_run)
+    except WorkbenchError as exc:
+        _exit_with_workbench_error(exc)
+
+@service_app.command("delete")
+def service_delete(
+    name: str = typer.Argument(..., help="服务名。"),
+    workspace_root: Path = typer.Option(Path("."), "--workspace-root", help="Workbench 根目录。"),
+    dry_run: bool = typer.Option(False, "--dry-run", help="只显示将写入的文件。"),
+) -> None:
+    """删除服务登记。"""
+    try:
+        root = find_workspace_root(workspace_root)
+        result = delete_service(root, name=name, dry_run=dry_run)
+        _echo_package_result(root, (result.path,), dry_run=dry_run, verb="updated")
+        _refresh_generated_views(root, dry_run=dry_run)
     except WorkbenchError as exc:
         _exit_with_workbench_error(exc)
 

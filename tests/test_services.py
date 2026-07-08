@@ -12,9 +12,11 @@ from codex_workbench.models import ServiceRegistry
 from codex_workbench.services import (
     CommandResult,
     add_service,
+    delete_service,
     read_service_registry,
     service_context,
     service_status,
+    update_service,
 )
 
 
@@ -89,6 +91,71 @@ def test_add_service_rejects_stale_registry_snapshot(
 
     assert exc_info.value.code is ErrorCode.CONCURRENT_UPDATE
     registry = read_service_registry(tmp_path)
+    assert [service.name for service in registry.services] == ["api"]
+
+
+def test_update_service_changes_only_supplied_fields(tmp_path: Path) -> None:
+    create_workspace(tmp_path)
+    old_path = tmp_path / "repos" / "api"
+    new_path = tmp_path / "repos" / "api-v2"
+    old_path.mkdir(parents=True)
+    new_path.mkdir(parents=True)
+    add_service(tmp_path, name="api", local_path=old_path, purpose="旧用途", notes="旧备注")
+
+    result = update_service(
+        tmp_path,
+        name="api",
+        local_path=new_path,
+        purpose="新用途",
+    )
+    registry = read_service_registry(tmp_path)
+
+    assert result.dry_run is False
+    assert registry.services[0].name == "api"
+    assert registry.services[0].local_path == str(new_path)
+    assert registry.services[0].purpose == "新用途"
+    assert registry.services[0].notes == "旧备注"
+
+
+def test_update_service_dry_run_does_not_write_registry(tmp_path: Path) -> None:
+    create_workspace(tmp_path)
+    service_path = tmp_path / "repos" / "api"
+    service_path.mkdir(parents=True)
+    add_service(tmp_path, name="api", local_path=service_path, purpose="旧用途")
+
+    result = update_service(tmp_path, name="api", purpose="新用途", dry_run=True)
+    registry = read_service_registry(tmp_path)
+
+    assert result.dry_run is True
+    assert registry.services[0].purpose == "旧用途"
+
+
+def test_delete_service_removes_only_target_service(tmp_path: Path) -> None:
+    create_workspace(tmp_path)
+    api_path = tmp_path / "repos" / "api"
+    web_path = tmp_path / "repos" / "web"
+    api_path.mkdir(parents=True)
+    web_path.mkdir(parents=True)
+    add_service(tmp_path, name="api", local_path=api_path)
+    add_service(tmp_path, name="web", local_path=web_path)
+
+    result = delete_service(tmp_path, name="api")
+    registry = read_service_registry(tmp_path)
+
+    assert result.dry_run is False
+    assert [service.name for service in registry.services] == ["web"]
+
+
+def test_delete_service_dry_run_does_not_write_registry(tmp_path: Path) -> None:
+    create_workspace(tmp_path)
+    service_path = tmp_path / "repos" / "api"
+    service_path.mkdir(parents=True)
+    add_service(tmp_path, name="api", local_path=service_path)
+
+    result = delete_service(tmp_path, name="api", dry_run=True)
+    registry = read_service_registry(tmp_path)
+
+    assert result.dry_run is True
     assert [service.name for service in registry.services] == ["api"]
 
 

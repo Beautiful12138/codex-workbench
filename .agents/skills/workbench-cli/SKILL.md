@@ -66,7 +66,7 @@ codex-workbench task --help
 - `requirement`：需求关闭，核心命令 `requirement close`。
 - `task`：任务创建、准备、风险画像、阶段门禁和任务说明，核心命令 `task create`、`task context`、`task prepare`、`task impact-set`、`task check`、`task set-stage`。
 - `evidence` / `validation` / `handoff`：验证事实、验证判断和用户验收，核心命令 `evidence create`、`validation apply`、`handoff set`。
-- `service` / `workspace`：工作区和服务上下文，核心命令 `workspace context`、`service context`；`service status` 主要用于调试和脚本。
+- `service` / `workspace`：工作区和服务上下文，核心命令 `workspace context`、`service add/update/delete`、`service context`；`service status` 主要用于调试和脚本。
 - `action` / `change` / `decision` / `suspicion`：非任务记录和范围变化线索。
 - `index` / `doctor`：生成视图和只读健康检查，核心命令 `index generate`、`index check`、`doctor check`。
 - `archive`：归档预检、版本归档和历史查询，核心命令 `archive preflight`、`archive version`、`archive list`。
@@ -90,6 +90,7 @@ codex-workbench task --help
 ## 写状态边界
 
 - requirement、task、evidence、validation、handoff、archive 状态必须走 CLI。
+- 服务登记写入使用 `service add/update/delete`；没有对应 CLI 写入口时，不要静默手改 `services/registry.yaml`。
 - `CURRENT.md`、`docs/generated/index.md`、`docs/generated/recovery.md` 是生成视图，不能手改。
 - task 创建后发现影响面变化，用 `task impact-set`，不要静默改 `risk_level`。
 - 已有 `impact_profile` 时，`task prepare` / `task impact-set` 可局部覆盖字段；新建画像仍需 `--impact-action`。

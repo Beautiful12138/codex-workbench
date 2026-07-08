@@ -3380,6 +3380,81 @@ def test_service_add_dry_run_does_not_write_registry(tmp_path: Path) -> None:
     assert "api" not in list_result.output
 
 
+def test_service_update_command_changes_registry(tmp_path: Path) -> None:
+    create_workspace(tmp_path)
+    service_path = tmp_path / "repos" / "api"
+    service_path.mkdir(parents=True)
+    runner.invoke(
+        app,
+        [
+            "service",
+            "add",
+            "api",
+            "--path",
+            str(service_path),
+            "--purpose",
+            "旧用途",
+            "--workspace-root",
+            str(tmp_path),
+        ],
+    )
+
+    result = runner.invoke(
+        app,
+        [
+            "service",
+            "update",
+            "api",
+            "--purpose",
+            "新用途",
+            "--notes",
+            "新备注",
+            "--workspace-root",
+            str(tmp_path),
+        ],
+    )
+    context_result = runner.invoke(
+        app,
+        ["service", "context", "api", "--workspace-root", str(tmp_path)],
+    )
+
+    assert result.exit_code == 0
+    assert "updated services/registry.yaml" in result.output
+    assert "用途：新用途" in context_result.output
+    assert "备注：新备注" in context_result.output
+
+
+def test_service_delete_command_removes_registry_entry(tmp_path: Path) -> None:
+    create_workspace(tmp_path)
+    service_path = tmp_path / "repos" / "api"
+    service_path.mkdir(parents=True)
+    runner.invoke(
+        app,
+        [
+            "service",
+            "add",
+            "api",
+            "--path",
+            str(service_path),
+            "--workspace-root",
+            str(tmp_path),
+        ],
+    )
+
+    result = runner.invoke(
+        app,
+        ["service", "delete", "api", "--workspace-root", str(tmp_path)],
+    )
+    list_result = runner.invoke(
+        app,
+        ["service", "list", "--workspace-root", str(tmp_path)],
+    )
+
+    assert result.exit_code == 0
+    assert "updated services/registry.yaml" in result.output
+    assert "api" not in list_result.output
+
+
 def test_service_status_command_reports_non_git_path(tmp_path: Path) -> None:
     create_workspace(tmp_path)
     service_path = tmp_path / "repos" / "plain"
