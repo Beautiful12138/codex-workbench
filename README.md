@@ -296,6 +296,8 @@ docs/reusable/
 | 内容 | 位置 |
 | --- | --- |
 | 当前需求和任务 | `docs/active/` |
+| 轻量材料 | `docs/materials/` |
+| Codex 说明文档 | `docs/briefs/` |
 | 当前面板和恢复视图 | `CURRENT.md`、`docs/generated/` |
 | 服务登记 | `services/registry.yaml` |
 | 环境资料 | `environments/` |

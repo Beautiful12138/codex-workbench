@@ -22,6 +22,8 @@
 ## 运行期目录
 
 - `docs/inbox/`：材料和 discovery 入口。
+- `docs/materials/`：外部或用户提供内容的搬迁/收集副本，尽量保留原始语义，不表示需求已确认。
+- `docs/briefs/`：Codex 基于项目、需求、代码或材料生成的梳理、解读、说明和总结。
 - `docs/active/`：并发工作单元；requirement、task、evidence 等活动包都在这里。
 - `docs/generated/`：从 YAML 真源和服务登记生成的 index 与 recovery 视图；可重建，不覆盖真源。
 - `docs/archive/`：版本化冷历史；默认只在查询、恢复旧版本或归档时读取。
@@ -46,10 +48,11 @@
 1. 普通讨论和只读探索默认不写状态。
 2. 默认入口是 `workspace context -> task context -> service context -> task package`。
 3. 产品需求先进入 material / discovery / intake。
-4. 用户确认后，requirement 才 readable。
-5. task 是执行界面，进入实现前必须准备范围、风险触发器、验证方式和恢复提示。
-6. 多个 requirement 和 task 可同时存在，工作对象由用户请求、显式路径、ID、`CURRENT.md` 或 generated views 辅助选择。
-7. 服务登记帮助恢复上下文，不接管外部服务仓库 Git 生命周期。
-8. 涉及环境、服务器、数据库、GitLab、网站、联调、账号密码或操作方式时，先查 `environments/` 下相关自由 Markdown。
-9. 验证事实写入 evidence，validation 和 handoff 基于 evidence 与用户验收推进。
-10. done、requirement close 和 archive 是独立门禁，不能互相替代。
+4. 用户问已有材料、说明文档或要求搬迁材料时，先看 `docs/materials/` 和 `docs/briefs/`；它们不自动升级为需求事实。
+5. 用户确认后，requirement 才 readable。
+6. task 是执行界面，进入实现前必须准备范围、风险触发器、验证方式和恢复提示。
+7. 多个 requirement 和 task 可同时存在，工作对象由用户请求、显式路径、ID、`CURRENT.md` 或 generated views 辅助选择。
+8. 服务登记帮助恢复上下文，不接管外部服务仓库 Git 生命周期。
+9. 涉及环境、服务器、数据库、GitLab、网站、联调、账号密码或操作方式时，先查 `environments/` 下相关自由 Markdown。
+10. 验证事实写入 evidence，validation 和 handoff 基于 evidence 与用户验收推进。
+11. done、requirement close 和 archive 是独立门禁，不能互相替代。

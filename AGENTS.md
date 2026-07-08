@@ -45,6 +45,7 @@
 - `CURRENT.md`、`docs/generated/index.md`、`docs/generated/recovery.md` 是可重建视图，不覆盖真源。
 - `docs/archive/` 是版本化冷历史，默认不作为当前上下文。
 - `docs/actions/`、`docs/changes/`、`docs/decisions/`、`docs/suspicions/` 是非任务记录真源，但不能覆盖 task/evidence。
+- `docs/materials/`、`docs/briefs/` 是轻量资料入口；内容可供发现和解释，但不覆盖需求、任务、服务或验证真源。
 
 事实证据层级：人工明确确认 / 命令输出 / 真实文件状态 > evidence > action note > requirement/task YAML > discovery > generated view > task next_step > AI 推断 > 未确认假设。
 
