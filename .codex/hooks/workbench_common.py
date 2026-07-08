@@ -57,9 +57,9 @@ def session_start_context(root: Path | None) -> str:
         return ""
     return "\n".join(
         [
-            "Workbench: understand the request, then use workspace context; CURRENT/recovery/index are navigation aids, not truth.",
-            "Do not write status for chat or read-only exploration. Open task rules/CLI before code changes, status writes, stage moves, or completion claims.",
-            "Verify before cooperating: if facts or risks do not fit, say so briefly and offer a steadier path.",
+            "Workbench: classify lightly first; chat/read-only stays status-free.",
+            "Use workspace/service context for orientation; expand task/CLI/policy only for edits, status, evidence, environment, stage, completion, or real-risk ambiguity.",
+            "Generated views navigate; YAML, registry, evidence, files, and command output decide facts.",
         ]
     )
 
@@ -69,9 +69,8 @@ def user_prompt_context(root: Path | None) -> str:
         return ""
     return "\n".join(
         [
-            "Workbench reminder: chat and read-only exploration do not write status; open task rules/CLI before code changes, status writes, external impact, or completion claims.",
-            "Verify before cooperating: the user's direction is not automatically fact; if it does not fit, say so calmly and offer a steadier path.",
-            "If the user clarifies, corrects, discusses, or asks, confirm understanding first; edit assets only after clear authorization.",
+            "Workbench: chat/read-only = no status. Expand rules only for edits, state/stage, evidence, environment/external impact, completion, or risky ambiguity.",
+            "Confirm before asset edits unless the user clearly authorized them; if facts or risks do not fit, say so briefly and choose the steadier path.",
             "DO NOT send optional commentary.",
         ]
     )
