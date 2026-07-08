@@ -48,11 +48,18 @@
 
 事实证据层级：人工明确确认 / 命令输出 / 真实文件状态 > evidence > action note > requirement/task YAML > discovery > generated view > task next_step > AI 推断 > 未确认假设。
 
+## 写入器选择
+
+修改前先判断语义：状态流转、结构化关联、验证结论、归档关系和服务登记，优先走 `codex-workbench` CLI 或对应 `workbench-*` skill；解释层文档、工作产物、普通说明和低风险机械修正，可在授权范围内最小手工编辑。
+
+用户同意“修改内容”不等于同意绕过状态写入器。若手工编辑可能改变生命周期、范围、验证事实、恢复上下文或生成视图，先说明原因、影响和验证方式，再取得明确授权；否则改后运行相应检查。
+
 ## 红线
 
 - 没有用户确认的 readable requirement，不创建正式产品 task。
 - 正式产品 task 未进入 `in_progress` 或 implementation-ready 不清时，不修改任务目标内文件；明确授权的 `small-fix` / `maintenance_action` 只能按低风险、可验证、可回滚的边界最小执行。
 - `service_refs` 是相关服务标记，不是修改白名单。
+- 涉及状态/索引语义时，用户同意改内容不等于同意绕过 CLI/skill；手工编辑需先说明原因、影响和验证方式。
 - 涉及环境、账号、数据、部署、安全、权限、费用、不可逆操作、影响他人或共享环境时，先确认授权和风险边界。
 - 没有 evidence，不声称已验证或已完成。
 - action note、doctor clean、测试计划、gate-check、口头判断都不能替代 task evidence。
