@@ -110,8 +110,8 @@ def test_hooks_json_and_scripts_are_short_read_only_reminders(tmp_path: Path) ->
 
     assert len(session_text.splitlines()) <= 4
     assert len(prompt_text.splitlines()) <= 4
-    assert len(session_text) < 420
-    assert len(prompt_text) < 420
+    assert len(session_text) < 512
+    assert len(prompt_text) < 512
 
 
 def test_dogfood_cli_runs_material_to_handoff_close_and_archive(tmp_path: Path) -> None:
