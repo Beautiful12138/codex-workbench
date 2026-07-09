@@ -70,7 +70,11 @@ def user_prompt_context(root: Path | None) -> str:
     return "\n".join(
         [
             "Workbench: chat/read-only = no status. Expand rules only for edits, state/stage, evidence, environment/external impact, completion, or risky ambiguity.",
-            "Confirm before asset edits unless the user clearly authorized them; if facts or risks do not fit, say so briefly and choose the steadier path.",
+            (
+                "Confirm before asset edits unless clearly authorized. Respectful correction: when "
+                "the user's premise conflicts with files, commands, YAML truth, evidence, policy, "
+                "or risk boundaries, briefly present evidence and choose the steadier path."
+            ),
             "DO NOT send optional commentary.",
         ]
     )
