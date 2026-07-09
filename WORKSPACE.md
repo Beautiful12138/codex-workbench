@@ -15,6 +15,7 @@
 - CURRENT.md：最近工作面板。
 - README.md：人类使用说明。
 - WORKSPACE.md：目录地图。
+- guides：Workbench 自身的长期用户指南、设计导览和上手说明。
 - skills：按场景的详细操作手册。
 - policies：规则边界。
 - hooks：轻提醒，不决策。
@@ -22,6 +23,7 @@
 ## 运行期目录
 
 - `docs/inbox/`：材料和 discovery 入口。
+- `docs/guides/`：Workbench 自身的长期用户指南、设计导览和上手说明，不承载任务状态。
 - `docs/materials/`：外部或用户提供内容的搬迁/收集副本，尽量保留原始语义，不表示需求已确认。
 - `docs/briefs/`：Codex 基于项目、需求、代码或材料生成的梳理、解读、说明和总结。
 - `docs/active/`：并发工作单元；requirement、task、evidence 等活动包都在这里。

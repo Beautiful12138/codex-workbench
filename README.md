@@ -16,6 +16,8 @@
 
 Workbench 不会替你做最终决策，也不会自动授权 Codex 修改业务代码。它帮助 Codex 少靠聊天记忆硬撑，并在复杂工作里少越界。
 
+如果你想先完整理解它的设计思想、状态模型和协作边界，可以读 [理解 codex-workbench](docs/guides/understanding-codex-workbench.md)。
+
 适合使用 Workbench 的情况：
 
 - 你有多个需求或任务需要 Codex 长期跟踪。
@@ -104,6 +106,16 @@ E:\AI\codex-workbench
 时间：每个工作日早上 07:00
 时间配置要求：按 Codex Desktop 界面/本地时间直接配置为周一到周五 07:00，不要换算成 UTC 的周日到周四 23:00。
 状态：启用
+底层参数参考：
+id = "workbench"
+kind = "cron"
+name = "Workbench 夜间可复用经验维护"
+status = "ACTIVE"
+rrule = "RRULE:FREQ=WEEKLY;BYHOUR=7;BYMINUTE=0;BYDAY=MO,TU,WE,TH,FR"
+model = "gpt-5.5"
+reasoning_effort = "xhigh"
+execution_environment = "local"
+cwds = ["<你的 Workbench 目录>"]
 
 自动化提示词：
 你是 codex-workbench 的夜间可复用经验维护 Codex。
@@ -129,7 +141,7 @@ E:\AI\codex-workbench
 完成时汇报：本次读取了哪些候选范围、新增/更新/删除/合并/跳过了什么、ledger 和 handoff 是否写入成功、是否有需要下一次接续的问题。若任何关键检查失败，不要扩大修改，按 runbook 标记 partial 或 failed。
 ```
 
-创建或更新后，Codex 应读取自动化配置，确认工作空间、模型、推理强度、时间和状态都正确。已安排界面应显示“周一-周五（时间：07:00）”；如果显示“周日-周四（时间：23:00）”，说明时间配置错了，应更新为界面语义下的工作日 07:00。
+创建或更新后，Codex 应读取自动化配置，确认工作空间、模型、推理强度、时间和状态都正确。已安排界面应显示“周一-周五（时间：07:00）”；如果显示“周日-周四（时间：23:00）”，说明时间配置错了，应更新为界面语义下的工作日 07:00。使用工具创建或更新时，不要只凭 `BYHOUR=7` 判断正确；关键是最终配置不要带 `DTSTART:...Z` 这类 UTC 锚点，且界面显示为本地时间的工作日 07:00。
 
 ## 3. 挂载你的业务服务
 
@@ -296,6 +308,7 @@ docs/reusable/
 | 内容 | 位置 |
 | --- | --- |
 | 当前需求和任务 | `docs/active/` |
+| Workbench 用户指南 | `docs/guides/` |
 | 轻量材料 | `docs/materials/` |
 | Codex 说明文档 | `docs/briefs/` |
 | 当前面板和恢复视图 | `CURRENT.md`、`docs/generated/` |
@@ -395,6 +408,7 @@ codex-workbench index check --workspace-root .
 ## 11. 进一步阅读
 
 - `AGENTS.md`：Codex 进入本仓库时的热路径入口。
+- `docs/guides/`：Workbench 自身的用户指南、设计导览和上手说明。
 - `.agents/skills/workbench-*`：恢复、任务、门禁、环境、验证、归档等场景手册。
 - `docs/policies/`：流程、风险、状态、材料、服务环境和模型语义的冷路径规则。
 - `.codex/automations/reusable-materials/runbook.md`：夜间可复用记忆维护手册。
