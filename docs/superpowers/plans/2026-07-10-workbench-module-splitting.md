@@ -517,6 +517,7 @@ Run:
 $env:PYTHONDONTWRITEBYTECODE='1'
 python -m pytest tests/test_packages.py tests/test_validation.py tests/test_materials.py tests/test_cli_requirement_task.py tests/test_cli_task_lifecycle.py tests/test_cli_task_context.py tests/test_codex_integration.py -q -p no:cacheprovider
 python -m pytest tests/test_structure.py -q -p no:cacheprovider
+$env:PYTHONPATH='src'
 python -c "from codex_workbench.packages import PackageWriteResult, check_task_stage, create_task_package, set_task_stage"
 $packageModules = Get-ChildItem -LiteralPath src/codex_workbench -Filter '_package_*.py' | ForEach-Object { $_.FullName }
 python -m ruff check --no-cache src/codex_workbench/packages.py @packageModules tests/test_packages.py
@@ -559,6 +560,7 @@ $indexModules = Get-ChildItem -LiteralPath src/codex_workbench -Filter '_index_*
 $packageModules = Get-ChildItem -LiteralPath src/codex_workbench -Filter '_package_*.py' | ForEach-Object { $_.FullName }
 $cliTests = Get-ChildItem -LiteralPath tests -Filter 'test_cli_*.py' | ForEach-Object { $_.FullName }
 python -m ruff format --check --no-cache src/codex_workbench/index.py src/codex_workbench/packages.py @indexModules @packageModules tests/test_structure.py tests/cli_test_support.py @cliTests
+$env:PYTHONPATH='src'
 python -c "from codex_workbench.index import check_generated_views, generate_index_views; from codex_workbench.packages import check_task_stage, create_task_package"
 ```
 

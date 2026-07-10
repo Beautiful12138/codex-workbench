@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 import yaml
 
-import codex_workbench.packages as packages_module
+import codex_workbench._package_core as package_core_module
 from codex_workbench.errors import ErrorCode, WorkbenchError
 from codex_workbench.io import read_yaml_with_version
 from codex_workbench.models import RequirementState, TaskState
@@ -125,7 +125,7 @@ def test_package_creation_rolls_back_first_file_when_second_file_conflicts(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     create_workspace(tmp_path)
-    original_write = packages_module.write_text_utf8_atomic
+    original_write = package_core_module.write_text_utf8_atomic
     requirement_yaml = tmp_path / "docs" / "active" / "REQ-20260702-001" / "requirement.yaml"
     requirement_md = tmp_path / "docs" / "active" / "REQ-20260702-001" / "requirement.md"
 
@@ -135,7 +135,7 @@ def test_package_creation_rolls_back_first_file_when_second_file_conflicts(
             raise WorkbenchError(ErrorCode.ALREADY_EXISTS, "already_exists", exit_code=2)
         original_write(path, content, **kwargs)
 
-    monkeypatch.setattr(packages_module, "write_text_utf8_atomic", fail_on_markdown)
+    monkeypatch.setattr(package_core_module, "write_text_utf8_atomic", fail_on_markdown)
 
     with pytest.raises(WorkbenchError) as exc_info:
         create_requirement_package(tmp_path, requirement_context())
@@ -150,7 +150,7 @@ def test_package_creation_does_not_delete_overwritten_file_on_later_failure(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     create_workspace(tmp_path)
-    original_write = packages_module.write_text_utf8_atomic
+    original_write = package_core_module.write_text_utf8_atomic
     first = tmp_path / "docs" / "active" / "REQ-20260702-001" / "first.md"
     second = tmp_path / "docs" / "active" / "REQ-20260702-001" / "second.md"
     first.parent.mkdir(parents=True)
@@ -161,7 +161,7 @@ def test_package_creation_does_not_delete_overwritten_file_on_later_failure(
             raise WorkbenchError(ErrorCode.ALREADY_EXISTS, "already_exists", exit_code=2)
         original_write(path, content, **kwargs)
 
-    monkeypatch.setattr(packages_module, "write_text_utf8_atomic", fail_on_second)
+    monkeypatch.setattr(package_core_module, "write_text_utf8_atomic", fail_on_second)
 
     with pytest.raises(WorkbenchError) as exc_info:
         write_package_files(
@@ -414,7 +414,7 @@ def test_update_task_packet_rejects_stale_task_yaml_snapshot(
             return stale_snapshot
         return read_yaml_with_version(path)
 
-    monkeypatch.setattr(packages_module, "read_yaml_with_version", read_stale_snapshot)
+    monkeypatch.setattr(package_core_module, "read_yaml_with_version", read_stale_snapshot)
 
     with pytest.raises(WorkbenchError) as exc_info:
         update_task_packet(
@@ -511,7 +511,7 @@ def test_review_document_rollback_preserves_concurrently_modified_file(
     write_requirement(tmp_path)
     create_task_package(tmp_path, task_context(service_refs=[]))
     review_md = tmp_path / "docs" / "active" / "REQ-20260702-001-TASK-20260702-001" / "review.md"
-    original_write_yaml = packages_module.write_yaml_atomic
+    original_write_yaml = package_core_module.write_yaml_atomic
 
     def fail_after_external_review_edit(path: Path, data: object, **kwargs: object) -> None:
         if path.name == "task.yaml":
@@ -519,7 +519,7 @@ def test_review_document_rollback_preserves_concurrently_modified_file(
             raise WorkbenchError(ErrorCode.CONCURRENT_UPDATE, "concurrent_update", exit_code=2)
         original_write_yaml(path, data, **kwargs)
 
-    monkeypatch.setattr(packages_module, "write_yaml_atomic", fail_after_external_review_edit)
+    monkeypatch.setattr(package_core_module, "write_yaml_atomic", fail_after_external_review_edit)
 
     with pytest.raises(WorkbenchError) as exc_info:
         create_task_review_document(
