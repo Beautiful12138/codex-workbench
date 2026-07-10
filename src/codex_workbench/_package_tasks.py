@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from . import _package_core as package_core
+from ._package_core import PackageWriteResult, TaskStageCheckResult
 from .errors import ErrorCode, WorkbenchError
 from .lifecycle import evaluate_task_transition
 from .models import BlockedBy, ConfirmationType, TaskStage, TaskState
@@ -21,7 +22,7 @@ def update_task_packet(
     next_step: str,
     updated_at: str | None = None,
     dry_run: bool = False,
-) -> package_core.PackageWriteResult:
+) -> PackageWriteResult:
     root, task_yaml, data, task, version = package_core._load_task_package(workspace_root, task_id)
     clean_next_step = package_core._clean_required(next_step, "missing_next_step")
     data["next_step"] = clean_next_step
@@ -38,7 +39,7 @@ def set_task_stage(
     *,
     updated_at: str | None = None,
     dry_run: bool = False,
-) -> package_core.PackageWriteResult:
+) -> PackageWriteResult:
     root = Path(workspace_root).expanduser().resolve()
     task_yaml = package_core._package_file(root, "docs/active", task_id, "task.yaml")
     snapshot = package_core.read_yaml_with_version(task_yaml)
@@ -86,7 +87,7 @@ def check_task_stage(
     workspace_root: str | Path,
     task_id: str,
     stage: str,
-) -> package_core.TaskStageCheckResult:
+) -> TaskStageCheckResult:
     root, _, _, task, _ = package_core._load_task_package(workspace_root, task_id)
     try:
         target_stage = TaskStage(stage)
@@ -139,7 +140,7 @@ def prepare_task(
     risk_triggers: list[str] | None = None,
     updated_at: str | None = None,
     dry_run: bool = False,
-) -> package_core.PackageWriteResult:
+) -> PackageWriteResult:
     root, task_yaml, data, task, version = package_core._load_task_package(workspace_root, task_id)
     scope = package_core._clean_required_list(working_scope, "missing_working_scope")
 
@@ -228,7 +229,7 @@ def update_task_impact(
     reason: str,
     updated_at: str | None = None,
     dry_run: bool = False,
-) -> package_core.PackageWriteResult:
+) -> PackageWriteResult:
     root, task_yaml, data, task, version = package_core._load_task_package(workspace_root, task_id)
     package_core._apply_task_impact_update(
         data,
@@ -257,7 +258,7 @@ def create_task_review_document(
     *,
     updated_at: str | None = None,
     dry_run: bool = False,
-) -> package_core.PackageWriteResult:
+) -> PackageWriteResult:
     root, task_yaml, data, task, version = package_core._load_task_package(workspace_root, task_id)
     context = TaskDocumentTemplateContext(task_id=task.id)
     files = render_review_document(context)
@@ -292,7 +293,7 @@ def create_task_implementation_document(
     *,
     updated_at: str | None = None,
     dry_run: bool = False,
-) -> package_core.PackageWriteResult:
+) -> PackageWriteResult:
     root, task_yaml, data, task, version = package_core._load_task_package(workspace_root, task_id)
     context = TaskDocumentTemplateContext(task_id=task.id)
     files = render_implementation_document(context)
@@ -329,7 +330,7 @@ def block_task(
     resume_stage: str,
     updated_at: str | None = None,
     dry_run: bool = False,
-) -> package_core.PackageWriteResult:
+) -> PackageWriteResult:
     root, task_yaml, data, task, version = package_core._load_task_package(workspace_root, task_id)
     try:
         blocked_by_value = BlockedBy(blocked_by)
@@ -384,7 +385,7 @@ def obsolete_task(
     reason: str,
     updated_at: str | None = None,
     dry_run: bool = False,
-) -> package_core.PackageWriteResult:
+) -> PackageWriteResult:
     root, task_yaml, data, task, version = package_core._load_task_package(workspace_root, task_id)
     data["obsolete_reason"] = package_core._clean_required(reason, "missing_obsolete_reason")
     task = TaskState.model_validate(data)

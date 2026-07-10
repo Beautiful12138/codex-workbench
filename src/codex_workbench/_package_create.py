@@ -5,6 +5,7 @@ from pathlib import Path
 import yaml
 
 from . import _package_core as package_core
+from ._package_core import PackageWriteResult
 from .errors import ErrorCode, WorkbenchError
 from .lifecycle import requirement_allows_formal_task
 from .models import ConfirmationType, RequirementState, TaskStage, TaskState
@@ -24,7 +25,7 @@ def create_requirement_package(
     *,
     dry_run: bool = False,
     overwrite: bool = False,
-) -> package_core.PackageWriteResult:
+) -> PackageWriteResult:
     files = render_requirement_package(context)
     requirement_yaml = yaml.safe_load(
         next(content for path, content in files.items() if path.endswith("requirement.yaml"))
@@ -41,7 +42,7 @@ def create_task_package(
     *,
     dry_run: bool = False,
     overwrite: bool = False,
-) -> package_core.PackageWriteResult:
+) -> PackageWriteResult:
     package_core._validate_new_package_id(context.task_id)
     validate_package_ref(context.requirement_id)
     try:
@@ -107,7 +108,7 @@ def close_requirement(
     note: str,
     updated_at: str | None = None,
     dry_run: bool = False,
-) -> package_core.PackageWriteResult:
+) -> PackageWriteResult:
     clean_requirement_id = validate_package_ref(requirement_id)
     clean_note = note.strip()
     if not clean_note:

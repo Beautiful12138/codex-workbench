@@ -1,6 +1,10 @@
 from __future__ import annotations
 
+from inspect import isfunction, signature
 from pathlib import Path
+
+import codex_workbench.index as index_module
+import codex_workbench.packages as packages_module
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -39,3 +43,31 @@ def test_cli_test_modules_stay_within_reviewable_size() -> None:
     }
 
     assert oversized == {}
+
+
+def test_index_facade_exports_only_supported_api() -> None:
+    expected = {
+        "IndexCheckResult",
+        "IndexWriteResult",
+        "check_generated_views",
+        "generate_index_views",
+    }
+
+    assert set(getattr(index_module, "__all__", ())) == expected
+    assert not {
+        "collect_snapshot",
+        "render_current",
+        "render_index",
+        "render_recovery",
+    }.intersection(vars(index_module))
+
+
+def test_package_facade_return_annotations_hide_private_modules() -> None:
+    leaked_annotations = {
+        name: str(signature(value).return_annotation)
+        for name in packages_module.__all__
+        if isfunction(value := getattr(packages_module, name))
+        and "package_core." in str(signature(value).return_annotation)
+    }
+
+    assert leaked_annotations == {}
