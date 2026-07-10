@@ -311,13 +311,15 @@ def test_knowledge_lists_are_not_shared() -> None:
     assert second.confirmed_facts == []
 
 
-def test_service_registry_accepts_current_seed_file() -> None:
+def test_service_registry_accepts_current_registry_file() -> None:
     registry_data = yaml.safe_load((ROOT / "services" / "registry.yaml").read_text(encoding="utf-8"))
 
     registry = ServiceRegistry.model_validate(registry_data)
 
     assert registry.schema_version == CURRENT_SCHEMA_VERSION
-    assert registry.services == []
+    assert [service.model_dump(exclude_none=True) for service in registry.services] == registry_data[
+        "services"
+    ]
 
 
 def test_service_registry_rejects_removed_candidate_services_field() -> None:
