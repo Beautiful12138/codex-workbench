@@ -174,9 +174,9 @@ def _format_service_context(context: ServiceContext) -> str:
         lines.append(f"备注：{context.notes}")
     lines.extend(
         [
-        f"路径：{path}",
-        f"状态：{context.path_state} | Git：{context.git_state} | 可见文件：{visible_files}",
-        f"入口候选：{_format_csv(context.entry_candidates)}",
+            f"路径：{path}",
+            f"状态：{context.path_state} | Git：{context.git_state} | 可见文件：{visible_files}",
+            f"入口候选：{_format_csv(context.entry_candidates)}",
         ]
     )
     if context.git_root and context.git_status_scope:

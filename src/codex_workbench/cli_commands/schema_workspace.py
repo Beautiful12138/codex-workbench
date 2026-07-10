@@ -235,11 +235,7 @@ def _workspace_service_check_lines(
 
 
 def _registered_service_records(snapshot: _IndexSnapshot) -> list[dict[str, object]]:
-    return [
-        service
-        for service in snapshot.services
-        if str(service.get("name", "")).strip()
-    ]
+    return [service for service in snapshot.services if str(service.get("name", "")).strip()]
 
 
 def _registered_project_count(service_records: list[dict[str, object]]) -> int:
@@ -260,9 +256,7 @@ def _select_service_records(
                 f"unknown_project: {project_name}",
                 exit_code=2,
             )
-        return [
-            service for service in service_records if _service_project(service) == project_name
-        ]
+        return [service for service in service_records if _service_project(service) == project_name]
     if ungrouped:
         return [service for service in service_records if _service_project(service) is None]
     return service_records

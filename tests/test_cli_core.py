@@ -485,10 +485,7 @@ def test_workspace_context_prioritizes_unknown_active_service_refs(tmp_path: Pat
         "## 项目与服务概览",
         "## 服务检查",
     )
-    assert (
-        "- missing-active-service：任务引用：1 | 阻断：unknown_service_ref"
-        in service_overview
-    )
+    assert "- missing-active-service：任务引用：1 | 阻断：unknown_service_ref" in service_overview
     assert (
         "- missing-active-service：任务引用：1 | 阻断：unknown_service_ref"
         in checked_service_overview
