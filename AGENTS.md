@@ -20,6 +20,8 @@
 
 默认路径：`workspace context -> task context -> service context -> task package`。生成视图只用于定位和恢复，不能覆盖包 YAML 真源。
 
+`workspace context` 的项目概览只全量展示服务名称；路径、Git 和入口等详情仍按需进入 `service context`。
+
 ## Skill 入口
 
 按用户意图使用匹配的 skill；skill description 是场景发现入口，进入具体场景后再读本仓库内对应路径的 `SKILL.md`，不要去用户业务项目路径下寻找 Workbench skill。

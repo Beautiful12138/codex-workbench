@@ -4,13 +4,15 @@
 
 ## 服务登记
 
-`services/registry.yaml` 记录服务名、本地路径、用途和备注。它用于恢复上下文和生成视图，不接管服务仓库的生命周期。
+`services/registry.yaml` 记录服务名、可选项目分组、本地路径、用途和备注。项目分组只用于导航和展示；服务名仍全局唯一，task 的 `service_refs` 仍引用具体服务名。registry 用于恢复上下文和生成视图，不接管服务仓库的生命周期。
 
 服务可以在 Workbench 目录内，也可以是外部绝对路径。未登记服务可以只读探索；需要长期协作、修改或任务关联时再登记。
 
-`workspace context` 默认只读 `services/registry.yaml`，显示服务名、用途和活动任务引用数量，不深入检查服务路径、文件数、入口候选或 Git 状态。大型项目中，不要为了第一眼入口自动巡检服务仓库。
+`workspace context` 默认只读 `services/registry.yaml`，按项目分组并全量显示服务名称；没有项目分组的服务显示在“未分组”。默认不显示路径、用途、备注、Git 状态或入口候选，也不自动巡检服务仓库。可以用 `--project <项目名>` 或 `--ungrouped` 聚焦一组服务。
 
-`service context <服务名>` 是只读工作面板，用来判断服务路径是否存在、目录是否为空、是否能看到常见入口文件，以及 Git 状态是否只针对服务目录读取。它帮助 Codex 判断“能不能接这个任务”，不代表 Workbench 接管服务仓库。需要批量探测时可以显式运行 `workspace context --check-services`，但这不是默认入口。
+`service context <服务名>` 是只读工作面板，用来判断服务路径是否存在、目录是否为空、是否能看到常见入口文件，以及 Git 状态是否只针对服务目录读取。它帮助 Codex 判断“能不能接这个任务”，不代表 Workbench 接管服务仓库。需要批量探测时可以显式运行 `workspace context --check-services`，但无论是否指定项目，一次最多深入检查 5 个服务；其余服务应按需点名。
+
+项目分组通过 `service add/update --project <项目名>` 设置，通过 `service update --clear-project` 清除。Workbench 不根据目录结构自动发现或批量登记项目下的 Git 仓库。
 
 ## 环境资料目录
 

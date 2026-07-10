@@ -17,7 +17,7 @@ schema_version: "0.1"
 - `WorkspaceState`：工作空间入口状态。
 - `RequirementState`：需求边界容器，不是执行界面。
 - `TaskState`：最小可恢复执行界面。
-- `ServiceRegistry`：服务登记和可达性输入；`service_refs` 不是修改白名单。
+- `ServiceRegistry`：服务登记、可选项目分组和可达性输入；服务名保持全局唯一，`service_refs` 引用具体服务且不是修改白名单。
 - `EvidenceState`：验证事实、结论和未验证项。
 - `ActionNoteState`：非任务动作记录，不能替代任务 evidence。
 - `ChangeRecordState`：正式范围、验收、契约或真实后果变化记录。

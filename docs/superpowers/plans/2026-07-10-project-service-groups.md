@@ -428,6 +428,7 @@ git commit -m "feat: group workspace services by project"
 
 **Files:**
 - Modify: `docs/policies/services-and-environment.md`
+- Modify: `docs/policies/model-schema.md`
 - Modify: `.agents/skills/workbench-cli/SKILL.md`
 - Modify: `AGENTS.md`
 - Test: complete repository test and lint suites
@@ -453,9 +454,10 @@ Keep the hot-path `AGENTS.md` addition to one concise sentence; do not expand it
 Run:
 
 ```powershell
-py -3 -m codex_workbench.cli service add --help
-py -3 -m codex_workbench.cli service update --help
-py -3 -m codex_workbench.cli workspace context --help
+$env:PYTHONPATH=(Resolve-Path src)
+py -3 -c "from codex_workbench.cli import main; main()" service add --help
+py -3 -c "from codex_workbench.cli import main; main()" service update --help
+py -3 -c "from codex_workbench.cli import main; main()" workspace context --help
 py -3 -m pytest tests/test_models.py tests/test_services.py tests/test_cli_service_commands.py tests/test_cli_core.py -q
 ```
 
@@ -477,7 +479,7 @@ Expected: pytest and Ruff exit `0`, diff check is clean, and status contains onl
 - [ ] **Step 4: Commit documentation**
 
 ```powershell
-git add AGENTS.md .agents/skills/workbench-cli/SKILL.md docs/policies/services-and-environment.md
+git add AGENTS.md .agents/skills/workbench-cli/SKILL.md docs/policies/model-schema.md docs/policies/services-and-environment.md docs/superpowers/plans/2026-07-10-project-service-groups.md
 git commit -m "docs: explain project-grouped service context"
 ```
 
