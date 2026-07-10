@@ -74,7 +74,7 @@
 - `_index_conflicts.py`：引用、ID、evidence 和 archive 冲突检测。
 - `_index_views.py`：CURRENT、index、recovery 渲染及显示辅助函数。
 
-公共入口负责调用这些组件、写入生成视图和比较 stale 状态。外部调用方继续只依赖 `codex_workbench.index`。
+公共入口负责调用这些组件、写入生成视图和比较 stale 状态。`doctor`、index CLI 等外部调用方继续只依赖 `codex_workbench.index`；同包内负责 workspace context 展示的 `schema_workspace.py` 直接依赖私有快照与渲染辅助函数，避免把内部类型重新暴露到公共 facade。
 
 ### 包与任务模块
 

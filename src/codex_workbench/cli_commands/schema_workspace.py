@@ -5,15 +5,10 @@ from pathlib import Path
 import typer
 
 from ..advice import workspace_advice_lines
+from .._index_records import collect_snapshot
+from .._index_types import _IndexSnapshot, _YamlRecord
+from .._index_views import _final_newline, _record_timestamp, _task_risk_gaps
 from ..errors import WorkbenchError
-from ..index import (
-    _IndexSnapshot,
-    _YamlRecord,
-    _collect_snapshot,
-    _final_newline,
-    _record_timestamp,
-    _task_risk_gaps,
-)
 from ..schema import core_model_json_schemas
 from ..task_context import build_task_context
 from ..workspace import find_workspace_root
@@ -67,7 +62,7 @@ def workspace_context_command(
     """输出按需工作区驾驶舱，不生成或修改视图文件。"""
     try:
         root = find_workspace_root(workspace_root)
-        snapshot = _collect_snapshot(root)
+        snapshot = collect_snapshot(root)
         lines = _workspace_context_lines(root, snapshot, check_services=check_services)
         if task_ref:
             lines.extend(["", "## 当前任务", ""])

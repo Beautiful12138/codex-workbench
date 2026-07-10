@@ -286,6 +286,7 @@ git commit -m "Split CLI tests by command domain"
 - Create: `src/codex_workbench/_index_conflicts.py`
 - Create: `src/codex_workbench/_index_views.py`
 - Modify: `src/codex_workbench/index.py`
+- Modify: `src/codex_workbench/cli_commands/schema_workspace.py`
 
 **Interfaces:**
 - Consumes: workspace paths and YAML records.
@@ -355,7 +356,11 @@ recovery_text = render_recovery(snapshot)
 
 Do not change write order, dry-run behavior, stale messages, or `conflicts` return values.
 
-- [ ] **Step 6: Verify index behavior and the remaining package-size red state**
+- [ ] **Step 6: Point workspace context at the internal index modules**
+
+Import `_IndexSnapshot` and `_YamlRecord` from `_index_types`, `collect_snapshot` from `_index_records`, and the three display helpers from `_index_views`. Replace `_collect_snapshot(root)` with `collect_snapshot(root)`. Do not re-export these private names from `index.py`.
+
+- [ ] **Step 7: Verify index behavior and the remaining package-size red state**
 
 Run:
 
@@ -369,10 +374,10 @@ python -m ruff check --no-cache src/codex_workbench/index.py @indexModules
 
 Expected after this task: index-related tests pass; the runtime size test still reports only `packages.py` until Task 4.
 
-- [ ] **Step 7: Commit the index split**
+- [ ] **Step 8: Commit the index split**
 
 ```powershell
-git add -- src/codex_workbench/index.py src/codex_workbench/_index_types.py src/codex_workbench/_index_records.py src/codex_workbench/_index_conflicts.py src/codex_workbench/_index_views.py
+git add -- docs/superpowers/specs/2026-07-10-workbench-module-splitting-design.md docs/superpowers/plans/2026-07-10-workbench-module-splitting.md src/codex_workbench/index.py src/codex_workbench/_index_types.py src/codex_workbench/_index_records.py src/codex_workbench/_index_conflicts.py src/codex_workbench/_index_views.py src/codex_workbench/cli_commands/schema_workspace.py
 git commit -m "Split index generation responsibilities"
 ```
 
