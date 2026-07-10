@@ -385,6 +385,7 @@ class TaskState(WorkbenchModel):
 
 class ServiceEntry(WorkbenchModel):
     name: NonEmptyString
+    project: NonEmptyString | None = None
     local_path: str | None = None
     purpose: str | None = None
     notes: str | None = None

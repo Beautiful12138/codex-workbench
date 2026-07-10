@@ -324,6 +324,33 @@ def test_service_registry_accepts_registered_services() -> None:
     assert registry.services[0].purpose == "用户接口服务"
 
 
+def test_service_registry_accepts_optional_project_and_old_entries() -> None:
+    registry = ServiceRegistry.model_validate(
+        {
+            "schema_version": CURRENT_SCHEMA_VERSION,
+            "services": [
+                {"name": "api", "local_path": "repos/api", "project": "studioV3"},
+                {"name": "worker", "local_path": "repos/worker"},
+            ],
+        }
+    )
+
+    assert registry.services[0].project == "studioV3"
+    assert registry.services[1].project is None
+
+
+def test_service_registry_rejects_blank_project() -> None:
+    with pytest.raises(ValidationError) as exc_info:
+        ServiceRegistry.model_validate(
+            {
+                "schema_version": CURRENT_SCHEMA_VERSION,
+                "services": [{"name": "api", "project": ""}],
+            }
+        )
+
+    assert exc_info.value.errors()[0]["loc"] == ("services", 0, "project")
+
+
 def test_service_registry_rejects_removed_candidate_services_field() -> None:
     with pytest.raises(ValidationError) as exc_info:
         ServiceRegistry.model_validate(

@@ -117,6 +117,42 @@ def test_update_service_changes_only_supplied_fields(tmp_path: Path) -> None:
     assert registry.services[0].notes == "旧备注"
 
 
+def test_service_project_can_be_set_and_cleared(tmp_path: Path) -> None:
+    create_workspace(tmp_path)
+    service_path = tmp_path / "repos" / "api"
+    service_path.mkdir(parents=True)
+
+    add_service(tmp_path, name="api", local_path=service_path, project="studioV3")
+
+    registry = read_service_registry(tmp_path)
+    assert registry.services[0].project == "studioV3"
+    assert service_context(tmp_path, "api").project == "studioV3"
+
+    update_service(tmp_path, name="api", clear_project=True)
+
+    registry = read_service_registry(tmp_path)
+    assert registry.services[0].project is None
+    assert service_context(tmp_path, "api").project is None
+
+
+def test_update_service_rejects_project_and_clear_project_together(tmp_path: Path) -> None:
+    create_workspace(tmp_path)
+    service_path = tmp_path / "repos" / "api"
+    service_path.mkdir(parents=True)
+    add_service(tmp_path, name="api", local_path=service_path)
+
+    with pytest.raises(WorkbenchError) as exc_info:
+        update_service(
+            tmp_path,
+            name="api",
+            project="studioV3",
+            clear_project=True,
+        )
+
+    assert exc_info.value.code is ErrorCode.VALIDATION_ERROR
+    assert exc_info.value.message == "service_project_options_conflict: api"
+
+
 def test_update_service_dry_run_does_not_write_registry(tmp_path: Path) -> None:
     create_workspace(tmp_path)
     service_path = tmp_path / "repos" / "api"

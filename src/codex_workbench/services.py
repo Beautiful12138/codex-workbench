@@ -57,6 +57,7 @@ class ServiceStatus:
 @dataclass(frozen=True)
 class ServiceContext:
     name: str
+    project: str | None
     registry_state: str
     raw_path: str | None
     purpose: str | None
@@ -99,6 +100,7 @@ def add_service(
     *,
     name: str,
     local_path: str | Path,
+    project: str | None = None,
     purpose: str | None = None,
     notes: str | None = None,
     dry_run: bool = False,
@@ -110,6 +112,7 @@ def add_service(
 
     entry = ServiceEntry(
         name=name,
+        project=project,
         local_path=str(Path(local_path)),
         purpose=purpose,
         notes=notes,
@@ -135,6 +138,8 @@ def update_service(
     *,
     name: str,
     local_path: str | Path | None = None,
+    project: str | None = None,
+    clear_project: bool = False,
     purpose: str | None = None,
     notes: str | None = None,
     dry_run: bool = False,
@@ -144,7 +149,19 @@ def update_service(
     registry = ServiceRegistry.model_validate(snapshot.data)
     target_index = _find_service_index(registry, name)
     current = registry.services[target_index]
-    if local_path is None and purpose is None and notes is None:
+    if project is not None and clear_project:
+        raise WorkbenchError(
+            ErrorCode.VALIDATION_ERROR,
+            f"service_project_options_conflict: {name}",
+            exit_code=2,
+        )
+    if (
+        local_path is None
+        and project is None
+        and not clear_project
+        and purpose is None
+        and notes is None
+    ):
         raise WorkbenchError(
             ErrorCode.VALIDATION_ERROR,
             f"service_update_no_fields: {name}",
@@ -153,6 +170,7 @@ def update_service(
 
     updated_entry = ServiceEntry(
         name=current.name,
+        project=None if clear_project else (project if project is not None else current.project),
         local_path=str(Path(local_path)) if local_path is not None else current.local_path,
         purpose=purpose if purpose is not None else current.purpose,
         notes=notes if notes is not None else current.notes,
@@ -319,6 +337,7 @@ def service_context(
     gaps = _service_context_gaps(status, entry_candidates)
     return ServiceContext(
         name=name,
+        project=entry.project,
         registry_state="registered",
         raw_path=entry.local_path,
         purpose=entry.purpose,
