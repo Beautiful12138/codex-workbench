@@ -8,7 +8,7 @@ from ..advice import workspace_advice_lines
 from .._index_records import collect_snapshot
 from .._index_types import _IndexSnapshot, _YamlRecord
 from .._index_views import _final_newline, _record_timestamp, _task_risk_gaps
-from ..errors import WorkbenchError
+from ..errors import ErrorCode, WorkbenchError
 from ..schema import core_model_json_schemas
 from ..task_context import build_task_context
 from ..workspace import find_workspace_root
@@ -52,6 +52,8 @@ def workspace_root(
 def workspace_context_command(
     task_ref: str | None = typer.Option(None, "--task", help="可选：嵌入指定任务的 task context。"),
     service_name: str | None = typer.Option(None, "--service", help="可选：嵌入指定服务的 service context。"),
+    project_name: str | None = typer.Option(None, "--project", help="只展示指定项目分组。"),
+    ungrouped: bool = typer.Option(False, "--ungrouped", help="只展示未分组服务。"),
     check_services: bool = typer.Option(
         False,
         "--check-services",
@@ -61,9 +63,21 @@ def workspace_context_command(
 ) -> None:
     """输出按需工作区驾驶舱，不生成或修改视图文件。"""
     try:
+        if project_name is not None and ungrouped:
+            raise WorkbenchError(
+                ErrorCode.VALIDATION_ERROR,
+                "workspace_project_options_conflict",
+                exit_code=2,
+            )
         root = find_workspace_root(workspace_root)
         snapshot = collect_snapshot(root)
-        lines = _workspace_context_lines(root, snapshot, check_services=check_services)
+        lines = _workspace_context_lines(
+            root,
+            snapshot,
+            project_name=project_name,
+            ungrouped=ungrouped,
+            check_services=check_services,
+        )
         if task_ref:
             lines.extend(["", "## 当前任务", ""])
             lines.extend(_format_task_context(build_task_context(root, task_ref)).splitlines())
@@ -75,8 +89,21 @@ def workspace_context_command(
         _exit_with_workbench_error(exc)
 
 
-def _workspace_context_lines(root: Path, snapshot: _IndexSnapshot, *, check_services: bool = False) -> list[str]:
+def _workspace_context_lines(
+    root: Path,
+    snapshot: _IndexSnapshot,
+    *,
+    project_name: str | None = None,
+    ungrouped: bool = False,
+    check_services: bool = False,
+) -> list[str]:
     active_tasks = _active_tasks(snapshot)
+    service_records = _registered_service_records(snapshot)
+    selected_service_records = _select_service_records(
+        service_records,
+        project_name=project_name,
+        ungrouped=ungrouped,
+    )
     workspace_state = "baseline" if not snapshot.requirements and not active_tasks else "active"
     active_task_count = "none" if not active_tasks else str(len(active_tasks))
     recommended_entry = "chat_or_explore" if not active_tasks else "resume_or_task"
@@ -89,6 +116,7 @@ def _workspace_context_lines(root: Path, snapshot: _IndexSnapshot, *, check_serv
         f"工作区状态：{workspace_state}",
         f"活动需求：{len(snapshot.requirements)}",
         f"活动任务：{active_task_count}",
+        f"登记项目：{_registered_project_count(service_records)}",
         f"登记服务：{len(snapshot.services)}",
         f"推荐入口：{recommended_entry}",
         "状态写入：默认不写；需要写状态时必须有明确场景和授权，并且只能走 CLI",
@@ -97,7 +125,24 @@ def _workspace_context_lines(root: Path, snapshot: _IndexSnapshot, *, check_serv
         "",
     ]
     service_ref_counts = _service_ref_counts(active_tasks)
-    lines.extend(_workspace_service_overview_lines(root, snapshot, service_ref_counts, check_services=check_services))
+    registered_names = {str(service.get("name", "")).strip() for service in service_records}
+    unknown_refs = [name for name in service_ref_counts if name not in registered_names]
+    lines.extend(
+        _workspace_service_overview_lines(
+            selected_service_records,
+            unknown_refs,
+            service_ref_counts,
+        )
+    )
+    if check_services:
+        lines.extend([""])
+        lines.extend(
+            _workspace_service_check_lines(
+                root,
+                selected_service_records,
+                service_ref_counts,
+            )
+        )
     lines.extend(["", "## 任务焦点", ""])
     lines.extend(_workspace_task_focus_lines(active_tasks))
 
@@ -124,38 +169,47 @@ def _workspace_context_lines(root: Path, snapshot: _IndexSnapshot, *, check_serv
 
 
 def _workspace_service_overview_lines(
-    root: Path,
-    snapshot: _IndexSnapshot,
+    service_records: list[dict[str, object]],
+    unknown_refs: list[str],
     service_ref_counts: dict[str, int],
-    *,
-    check_services: bool = False,
 ) -> list[str]:
-    lines = ["## 服务概览", ""]
-    service_records = [service for service in snapshot.services if str(service.get("name", "")).strip()]
-    service_records = _ordered_service_records(service_records, service_ref_counts)
-    registered_names = {str(service.get("name", "")).strip() for service in service_records}
-    unknown_refs = [name for name in service_ref_counts if name not in registered_names]
+    lines = [
+        "## 项目与服务概览",
+        "",
+        "> 默认只读 `services/registry.yaml` 并全量展示服务名称；服务详情用 `--service` 点名查看。",
+    ]
     if not service_records and not unknown_refs:
         lines.append("- none")
         return lines
-    shown_unknown_refs = unknown_refs[:5]
-    shown_service_limit = max(0, 5 - len(shown_unknown_refs))
-    shown_service_records = service_records[:shown_service_limit]
-    if not check_services:
-        lines.append("> 默认只读 `services/registry.yaml`；需要路径/Git/入口探测时，用 `--check-services` 或指定 `--service`。")
-        for name in shown_unknown_refs:
-            lines.append(f"- {name}：missing_registry | 任务引用：{service_ref_counts[name]} | 阻断：unknown_service_ref")
-        for service in shown_service_records:
-            name = str(service.get("name", "")).strip()
-            lines.append(_registry_only_service_line(service, service_ref_counts.get(name, 0)))
-        remaining = len(service_records) + len(unknown_refs) - len(shown_unknown_refs) - len(shown_service_records)
+    for project, project_services in _project_service_groups(service_records):
+        label = project or "未分组"
+        lines.append(f"- {label}：{len(project_services)} 个服务")
+        for service in project_services:
+            lines.append(f"  - {str(service.get('name', '')).strip()}")
+    if unknown_refs:
+        lines.extend(["", "### 未登记服务引用", ""])
+        for name in unknown_refs[:5]:
+            lines.append(
+                f"- {name}：任务引用：{service_ref_counts[name]} | 阻断：unknown_service_ref"
+            )
+        remaining = len(unknown_refs) - 5
         if remaining > 0:
-            lines.append(f"- and {remaining} more services")
+            lines.append(f"- and {remaining} more unknown service refs")
+    return lines
+
+
+def _workspace_service_check_lines(
+    root: Path,
+    service_records: list[dict[str, object]],
+    service_ref_counts: dict[str, int],
+) -> list[str]:
+    lines = ["## 服务检查", ""]
+    ordered_records = _ordered_service_records(service_records, service_ref_counts)
+    if not ordered_records:
+        lines.append("- none")
         return lines
-    checked_names = [str(service.get("name", "")).strip() for service in service_records]
-    for name in shown_unknown_refs:
-        lines.append(f"- {name}：missing_registry | 任务引用：{service_ref_counts[name]} | 阻断：unknown_service_ref")
-    for name in checked_names[:shown_service_limit]:
+    for service in ordered_records[:5]:
+        name = str(service.get("name", "")).strip()
         try:
             context = service_context(root, name)
         except WorkbenchError as exc:
@@ -174,24 +228,58 @@ def _workspace_service_overview_lines(
         if context.dirty_count or context.untracked_count:
             parts.append(f"变更：dirty={context.dirty_count} untracked={context.untracked_count}")
         lines.append(f"- {name}：" + " | ".join(parts))
-    remaining = len(checked_names) + len(unknown_refs) - len(shown_unknown_refs) - len(shown_service_records)
+    remaining = len(ordered_records) - 5
     if remaining > 0:
-        lines.append(f"- and {remaining} more services")
+        lines.append(f"- and {remaining} more unchecked services")
     return lines
 
 
-def _registry_only_service_line(service: dict[str, object], task_ref_count: int) -> str:
-    name = str(service.get("name", "")).strip()
-    purpose = str(service.get("purpose", "")).strip()
-    notes = str(service.get("notes", "")).strip()
-    path_label = "路径：已登记" if str(service.get("local_path", "")).strip() else "路径：未登记"
-    parts = ["registry_only", path_label, f"任务引用：{task_ref_count}"]
-    if purpose:
-        parts.append(f"用途：{purpose}")
-    if notes:
-        parts.append(f"备注：{notes}")
-    parts.append(f"深入：`workspace context --service {name}` 或 `service context {name}`")
-    return f"- {name}：" + " | ".join(parts)
+def _registered_service_records(snapshot: _IndexSnapshot) -> list[dict[str, object]]:
+    return [
+        service
+        for service in snapshot.services
+        if str(service.get("name", "")).strip()
+    ]
+
+
+def _registered_project_count(service_records: list[dict[str, object]]) -> int:
+    return len({_service_project(service) for service in service_records} - {None})
+
+
+def _select_service_records(
+    service_records: list[dict[str, object]],
+    *,
+    project_name: str | None,
+    ungrouped: bool,
+) -> list[dict[str, object]]:
+    if project_name is not None:
+        available_projects = {_service_project(service) for service in service_records}
+        if project_name not in available_projects:
+            raise WorkbenchError(
+                ErrorCode.VALIDATION_ERROR,
+                f"unknown_project: {project_name}",
+                exit_code=2,
+            )
+        return [
+            service for service in service_records if _service_project(service) == project_name
+        ]
+    if ungrouped:
+        return [service for service in service_records if _service_project(service) is None]
+    return service_records
+
+
+def _project_service_groups(
+    service_records: list[dict[str, object]],
+) -> list[tuple[str | None, list[dict[str, object]]]]:
+    groups: dict[str | None, list[dict[str, object]]] = {}
+    for service in service_records:
+        groups.setdefault(_service_project(service), []).append(service)
+    return list(groups.items())
+
+
+def _service_project(service: dict[str, object]) -> str | None:
+    project = str(service.get("project", "")).strip()
+    return project or None
 
 
 def _ordered_service_records(

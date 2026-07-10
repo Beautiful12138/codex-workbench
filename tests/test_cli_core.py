@@ -184,7 +184,28 @@ def test_workspace_context_can_embed_service_context(tmp_path: Path) -> None:
     assert recovery_path.read_text(encoding="utf-8") == before_recovery
 
 
-def test_workspace_context_lists_lightweight_service_overview(tmp_path: Path) -> None:
+def add_project_services(tmp_path: Path, project: str, names: list[str]) -> None:
+    for name in names:
+        service_path = tmp_path / "repos" / name
+        service_path.mkdir(parents=True)
+        result = runner.invoke(
+            app,
+            [
+                "service",
+                "add",
+                name,
+                "--path",
+                str(service_path),
+                "--project",
+                project,
+                "--workspace-root",
+                str(tmp_path),
+            ],
+        )
+        assert result.exit_code == 0
+
+
+def test_workspace_context_lists_ungrouped_service_names_without_details(tmp_path: Path) -> None:
     create_workspace(tmp_path)
     service_path = tmp_path / "repos" / "web"
     service_path.mkdir(parents=True)
@@ -205,17 +226,148 @@ def test_workspace_context_lists_lightweight_service_overview(tmp_path: Path) ->
     result = runner.invoke(app, ["workspace", "context", "--workspace-root", str(tmp_path)])
 
     assert result.exit_code == 0
-    assert "## 服务概览" in result.output
-    assert "- web-dashboard：registry_only | 路径：" in result.output
-    assert "任务引用：0" in result.output
-    assert (
-        "深入：`workspace context --service web-dashboard` 或 `service context web-dashboard`"
-        in result.output
+    assert "登记项目：0" in result.output
+    overview = workspace_context_section(
+        result.output,
+        "## 项目与服务概览",
+        "## 任务焦点",
     )
+    assert "- 未分组：1 个服务" in overview
+    assert "  - web-dashboard" in overview
+    assert "路径：" not in overview
+    assert "任务引用：" not in overview
+    assert "registry_only" not in overview
     assert "non_empty_dir" not in result.output
     assert "入口：package.json" not in result.output
     assert "## 当前服务" not in result.output
     assert f"路径：{service_path}" not in result.output
+
+
+def test_workspace_context_groups_all_service_names_without_details(tmp_path: Path) -> None:
+    create_workspace(tmp_path)
+    service_names = [f"studio-service-{index:02d}" for index in range(1, 24)]
+    add_project_services(tmp_path, "studioV3", service_names)
+    ungrouped_path = tmp_path / "repos" / "standalone"
+    ungrouped_path.mkdir(parents=True)
+    runner.invoke(
+        app,
+        [
+            "service",
+            "add",
+            "standalone",
+            "--path",
+            str(ungrouped_path),
+            "--purpose",
+            "不应出现在默认概览的用途",
+            "--workspace-root",
+            str(tmp_path),
+        ],
+    )
+
+    result = runner.invoke(app, ["workspace", "context", "--workspace-root", str(tmp_path)])
+
+    assert result.exit_code == 0
+    assert "登记项目：1" in result.output
+    overview = workspace_context_section(
+        result.output,
+        "## 项目与服务概览",
+        "## 任务焦点",
+    )
+    assert "- studioV3：23 个服务" in overview
+    assert "- 未分组：1 个服务" in overview
+    for name in [*service_names, "standalone"]:
+        assert f"  - {name}" in overview
+    assert "and " not in overview
+    assert "路径：" not in overview
+    assert "用途：" not in overview
+    assert "Git：" not in overview
+    assert "registry_only" not in overview
+
+
+def test_workspace_context_filters_project_and_ungrouped_services(tmp_path: Path) -> None:
+    create_workspace(tmp_path)
+    add_project_services(tmp_path, "studioV3", ["api", "worker"])
+    standalone_path = tmp_path / "repos" / "standalone"
+    standalone_path.mkdir(parents=True)
+    runner.invoke(
+        app,
+        [
+            "service",
+            "add",
+            "standalone",
+            "--path",
+            str(standalone_path),
+            "--workspace-root",
+            str(tmp_path),
+        ],
+    )
+
+    grouped = runner.invoke(
+        app,
+        [
+            "workspace",
+            "context",
+            "--project",
+            "studioV3",
+            "--workspace-root",
+            str(tmp_path),
+        ],
+    )
+    ungrouped = runner.invoke(
+        app,
+        ["workspace", "context", "--ungrouped", "--workspace-root", str(tmp_path)],
+    )
+
+    assert grouped.exit_code == 0
+    grouped_overview = workspace_context_section(
+        grouped.output,
+        "## 项目与服务概览",
+        "## 任务焦点",
+    )
+    assert "  - api" in grouped_overview
+    assert "  - worker" in grouped_overview
+    assert "standalone" not in grouped_overview
+    assert ungrouped.exit_code == 0
+    ungrouped_overview = workspace_context_section(
+        ungrouped.output,
+        "## 项目与服务概览",
+        "## 任务焦点",
+    )
+    assert "  - standalone" in ungrouped_overview
+    assert "  - api" not in ungrouped_overview
+
+
+def test_workspace_context_rejects_invalid_project_filters(tmp_path: Path) -> None:
+    create_workspace(tmp_path)
+
+    conflict = runner.invoke(
+        app,
+        [
+            "workspace",
+            "context",
+            "--project",
+            "studioV3",
+            "--ungrouped",
+            "--workspace-root",
+            str(tmp_path),
+        ],
+    )
+    unknown = runner.invoke(
+        app,
+        [
+            "workspace",
+            "context",
+            "--project",
+            "missing",
+            "--workspace-root",
+            str(tmp_path),
+        ],
+    )
+
+    assert conflict.exit_code == 2
+    assert "workspace_project_options_conflict" in combined_output(conflict)
+    assert unknown.exit_code == 2
+    assert "unknown_project: missing" in combined_output(unknown)
 
 
 def test_workspace_context_deduplicates_service_refs_from_many_tasks(tmp_path: Path) -> None:
@@ -265,7 +417,10 @@ def test_workspace_context_deduplicates_service_refs_from_many_tasks(tmp_path: P
             encoding="utf-8",
         )
 
-    result = runner.invoke(app, ["workspace", "context", "--workspace-root", str(tmp_path)])
+    result = runner.invoke(
+        app,
+        ["workspace", "context", "--check-services", "--workspace-root", str(tmp_path)],
+    )
 
     assert result.exit_code == 0
     assert result.output.count("- web-dashboard：") == 1
@@ -320,16 +475,22 @@ def test_workspace_context_prioritizes_unknown_active_service_refs(tmp_path: Pat
 
     assert result.exit_code == 0
     assert checked_result.exit_code == 0
-    service_overview = workspace_context_section(result.output, "## 服务概览", "## 任务焦点")
+    service_overview = workspace_context_section(
+        result.output,
+        "## 项目与服务概览",
+        "## 任务焦点",
+    )
     checked_service_overview = workspace_context_section(
-        checked_result.output, "## 服务概览", "## 任务焦点"
+        checked_result.output,
+        "## 项目与服务概览",
+        "## 服务检查",
     )
     assert (
-        "- missing-active-service：missing_registry | 任务引用：1 | 阻断：unknown_service_ref"
+        "- missing-active-service：任务引用：1 | 阻断：unknown_service_ref"
         in service_overview
     )
     assert (
-        "- missing-active-service：missing_registry | 任务引用：1 | 阻断：unknown_service_ref"
+        "- missing-active-service：任务引用：1 | 阻断：unknown_service_ref"
         in checked_service_overview
     )
 
@@ -357,11 +518,51 @@ def test_workspace_context_can_opt_into_service_checks(tmp_path: Path) -> None:
     )
 
     assert result.exit_code == 0
-    assert "## 服务概览" in result.output
+    assert "## 项目与服务概览" in result.output
+    assert "## 服务检查" in result.output
     assert (
         "- web-dashboard：non_empty_dir | Git：not_git | 入口：package.json | 任务引用：0 | 提醒：not_git"
         in result.output
     )
+
+
+def test_workspace_context_checks_at_most_five_services_in_selected_project(
+    tmp_path: Path,
+) -> None:
+    create_workspace(tmp_path)
+    service_names = [f"service-{index}" for index in range(1, 7)]
+    add_project_services(tmp_path, "studioV3", service_names)
+
+    result = runner.invoke(
+        app,
+        [
+            "workspace",
+            "context",
+            "--project",
+            "studioV3",
+            "--check-services",
+            "--workspace-root",
+            str(tmp_path),
+        ],
+    )
+
+    assert result.exit_code == 0
+    overview = workspace_context_section(
+        result.output,
+        "## 项目与服务概览",
+        "## 服务检查",
+    )
+    checks = workspace_context_section(
+        result.output,
+        "## 服务检查",
+        "## 任务焦点",
+    )
+    for name in service_names:
+        assert f"  - {name}" in overview
+    for name in service_names[:5]:
+        assert f"- {name}：" in checks
+    assert f"- {service_names[5]}：" not in checks
+    assert "- and 1 more unchecked services" in checks
 
 
 def test_workspace_context_groups_waiting_feedback_without_treating_it_as_blocked(
