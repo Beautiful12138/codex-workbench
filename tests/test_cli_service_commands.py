@@ -72,6 +72,36 @@ def test_service_add_dry_run_does_not_write_registry(tmp_path: Path) -> None:
     assert "api" not in list_result.output
 
 
+def test_service_add_with_project_dry_run_does_not_write_registry(tmp_path: Path) -> None:
+    create_workspace(tmp_path)
+    service_path = tmp_path / "repos" / "api"
+    service_path.mkdir(parents=True)
+
+    result = runner.invoke(
+        app,
+        [
+            "service",
+            "add",
+            "api",
+            "--path",
+            str(service_path),
+            "--project",
+            "studioV3",
+            "--workspace-root",
+            str(tmp_path),
+            "--dry-run",
+        ],
+    )
+    list_result = runner.invoke(
+        app,
+        ["service", "list", "--workspace-root", str(tmp_path)],
+    )
+
+    assert result.exit_code == 0
+    assert "dry-run services/registry.yaml" in result.output
+    assert "api" not in list_result.output
+
+
 def test_service_update_command_changes_registry(tmp_path: Path) -> None:
     create_workspace(tmp_path)
     service_path = tmp_path / "repos" / "api"
@@ -114,6 +144,109 @@ def test_service_update_command_changes_registry(tmp_path: Path) -> None:
     assert "updated services/registry.yaml" in result.output
     assert "用途：新用途" in context_result.output
     assert "备注：新备注" in context_result.output
+
+
+def test_service_cli_sets_changes_and_clears_project(tmp_path: Path) -> None:
+    create_workspace(tmp_path)
+    service_path = tmp_path / "repos" / "api"
+    service_path.mkdir(parents=True)
+
+    add_result = runner.invoke(
+        app,
+        [
+            "service",
+            "add",
+            "api",
+            "--path",
+            str(service_path),
+            "--project",
+            "studioV3",
+            "--workspace-root",
+            str(tmp_path),
+        ],
+    )
+    grouped = runner.invoke(
+        app,
+        [
+            "service",
+            "context",
+            "api",
+            "--format",
+            "json",
+            "--workspace-root",
+            str(tmp_path),
+        ],
+    )
+
+    assert add_result.exit_code == 0
+    assert grouped.exit_code == 0
+    assert json.loads(grouped.output)["project"] == "studioV3"
+
+    update_result = runner.invoke(
+        app,
+        [
+            "service",
+            "update",
+            "api",
+            "--project",
+            "studioV4",
+            "--workspace-root",
+            str(tmp_path),
+        ],
+    )
+    updated = runner.invoke(
+        app,
+        ["service", "context", "api", "--workspace-root", str(tmp_path)],
+    )
+
+    assert update_result.exit_code == 0
+    assert "项目：studioV4" in updated.output
+
+    clear_result = runner.invoke(
+        app,
+        [
+            "service",
+            "update",
+            "api",
+            "--clear-project",
+            "--workspace-root",
+            str(tmp_path),
+        ],
+    )
+    ungrouped = runner.invoke(
+        app,
+        ["service", "context", "api", "--workspace-root", str(tmp_path)],
+    )
+
+    assert clear_result.exit_code == 0
+    assert "项目：未分组" in ungrouped.output
+
+
+def test_service_update_rejects_project_and_clear_project_together(tmp_path: Path) -> None:
+    create_workspace(tmp_path)
+    service_path = tmp_path / "repos" / "api"
+    service_path.mkdir(parents=True)
+    runner.invoke(
+        app,
+        ["service", "add", "api", "--path", str(service_path), "--workspace-root", str(tmp_path)],
+    )
+
+    result = runner.invoke(
+        app,
+        [
+            "service",
+            "update",
+            "api",
+            "--project",
+            "studioV3",
+            "--clear-project",
+            "--workspace-root",
+            str(tmp_path),
+        ],
+    )
+
+    assert result.exit_code == 2
+    assert "service_project_options_conflict: api" in combined_output(result)
 
 
 def test_service_delete_command_removes_registry_entry(tmp_path: Path) -> None:

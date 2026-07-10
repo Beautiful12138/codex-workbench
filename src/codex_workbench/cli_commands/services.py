@@ -32,6 +32,7 @@ def service_callback() -> None:
 def service_add(
     name: str = typer.Argument(..., help="服务名，例如 api。"),
     local_path: Path = typer.Option(..., "--path", help="服务本地路径。"),
+    project: str | None = typer.Option(None, "--project", help="所属项目分组。"),
     purpose: str | None = typer.Option(None, "--purpose", help="服务用途说明。"),
     notes: str | None = typer.Option(None, "--notes", help="备注。"),
     workspace_root: Path = typer.Option(Path("."), "--workspace-root", help="Workbench 根目录。"),
@@ -44,6 +45,7 @@ def service_add(
             root,
             name=name,
             local_path=local_path,
+            project=project,
             purpose=purpose,
             notes=notes,
             dry_run=dry_run,
@@ -70,6 +72,8 @@ def service_list(
 def service_update(
     name: str = typer.Argument(..., help="服务名。"),
     local_path: Path | None = typer.Option(None, "--path", help="新的服务本地路径。"),
+    project: str | None = typer.Option(None, "--project", help="新的项目分组。"),
+    clear_project: bool = typer.Option(False, "--clear-project", help="移除项目分组。"),
     purpose: str | None = typer.Option(None, "--purpose", help="新的服务用途说明。"),
     notes: str | None = typer.Option(None, "--notes", help="新的备注。"),
     workspace_root: Path = typer.Option(Path("."), "--workspace-root", help="Workbench 根目录。"),
@@ -82,6 +86,8 @@ def service_update(
             root,
             name=name,
             local_path=local_path,
+            project=project,
+            clear_project=clear_project,
             purpose=purpose,
             notes=notes,
             dry_run=dry_run,
@@ -160,14 +166,19 @@ def _format_service_context(context: ServiceContext) -> str:
     visible_files = f">={context.visible_file_count}" if context.visible_file_count_limit_reached else str(context.visible_file_count)
     lines = [
         f"服务：{context.name}",
+        f"项目：{context.project or '未分组'}",
+    ]
+    if context.purpose:
+        lines.append(f"用途：{context.purpose}")
+    if context.notes:
+        lines.append(f"备注：{context.notes}")
+    lines.extend(
+        [
         f"路径：{path}",
         f"状态：{context.path_state} | Git：{context.git_state} | 可见文件：{visible_files}",
         f"入口候选：{_format_csv(context.entry_candidates)}",
-    ]
-    if context.purpose:
-        lines.insert(1, f"用途：{context.purpose}")
-    if context.notes:
-        lines.insert(2 if context.purpose else 1, f"备注：{context.notes}")
+        ]
+    )
     if context.git_root and context.git_status_scope:
         lines.append(
             (
@@ -191,6 +202,7 @@ def _format_service_context(context: ServiceContext) -> str:
 def _service_context_payload(context: ServiceContext) -> dict[str, object]:
     return {
         "name": context.name,
+        "project": context.project,
         "registry_state": context.registry_state,
         "raw_path": context.raw_path,
         "purpose": context.purpose,
