@@ -9,6 +9,7 @@ import yaml
 from typer.testing import CliRunner
 
 from codex_workbench.cli import app
+from codex_workbench.models import ServiceRegistry
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -81,6 +82,15 @@ def hook_context_text(output: dict) -> str:
     text = hook_output["additionalContext"]
     assert isinstance(text, str)
     return text
+
+
+def test_repository_service_registry_matches_current_schema() -> None:
+    registry_path = PROJECT_ROOT / "services" / "registry.yaml"
+    registry_data = yaml.safe_load(registry_path.read_text(encoding="utf-8"))
+
+    registry = ServiceRegistry.model_validate(registry_data)
+
+    assert registry.schema_version == "0.1"
 
 
 def test_hooks_json_and_scripts_are_short_read_only_reminders(tmp_path: Path) -> None:

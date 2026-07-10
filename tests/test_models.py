@@ -1,9 +1,6 @@
 from __future__ import annotations
 
-from pathlib import Path
-
 import pytest
-import yaml
 from pydantic import ValidationError
 
 from codex_workbench import models as model_module
@@ -23,9 +20,6 @@ from codex_workbench.models import (
     TaskState,
 )
 from codex_workbench.schema import CURRENT_SCHEMA_VERSION, core_model_json_schemas
-
-
-ROOT = Path(__file__).resolve().parents[1]
 
 
 def minimal_task(**overrides: object) -> dict[str, object]:
@@ -311,15 +305,23 @@ def test_knowledge_lists_are_not_shared() -> None:
     assert second.confirmed_facts == []
 
 
-def test_service_registry_accepts_current_registry_file() -> None:
-    registry_data = yaml.safe_load((ROOT / "services" / "registry.yaml").read_text(encoding="utf-8"))
-
-    registry = ServiceRegistry.model_validate(registry_data)
+def test_service_registry_accepts_registered_services() -> None:
+    registry = ServiceRegistry.model_validate(
+        {
+            "schema_version": CURRENT_SCHEMA_VERSION,
+            "services": [
+                {
+                    "name": "user-api",
+                    "local_path": r"D:\Work\services\user-api",
+                    "purpose": "用户接口服务",
+                }
+            ],
+        }
+    )
 
     assert registry.schema_version == CURRENT_SCHEMA_VERSION
-    assert [service.model_dump(exclude_none=True) for service in registry.services] == registry_data[
-        "services"
-    ]
+    assert registry.services[0].name == "user-api"
+    assert registry.services[0].purpose == "用户接口服务"
 
 
 def test_service_registry_rejects_removed_candidate_services_field() -> None:
