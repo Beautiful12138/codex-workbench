@@ -13,6 +13,12 @@ MARKDOWN_TEMPLATE_HINT = (
     "标题、章节和表达方式可按当前任务自由删改。"
 )
 
+MARKDOWN_FOLLOWUP_REQUIRED = (
+    "markdown_followup_required: CLI 实际创建 YAML 和 Markdown 后，"
+    "除非用户明确只要骨架，Codex 必须在同一轮根据真实现场补写 Markdown；"
+    "不得机械复述 YAML，空骨架不算完成。"
+)
+
 def _build_impact_profile(
     *,
     action: str | None,
@@ -109,6 +115,7 @@ def _echo_package_result(
 
 def _echo_markdown_template_hint() -> None:
     typer.echo(MARKDOWN_TEMPLATE_HINT)
+    typer.echo(MARKDOWN_FOLLOWUP_REQUIRED)
 
 def _refresh_generated_views(root: Path, *, dry_run: bool) -> None:
     if dry_run:

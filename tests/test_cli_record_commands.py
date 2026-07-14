@@ -80,6 +80,8 @@ def test_action_create_writes_machine_record_and_does_not_touch_task(tmp_path: P
     action = yaml.safe_load(action_yaml.read_text(encoding="utf-8"))
     assert "created docs/actions/ACT-001.yaml" in result.output
     assert "created docs/actions/ACT-001.md" in result.output
+    assert "markdown_followup_required:" in result.output
+    assert "空骨架不算完成" in result.output
     assert action["id"] == "ACT-001"
     assert action["summary"] == "只记录动作，不支撑验证。"
     assert action["action_type"] == "maintenance_action"

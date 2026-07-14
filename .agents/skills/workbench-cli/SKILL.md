@@ -20,7 +20,7 @@ description: 写状态命令怎么跑/命令参数/Workbench CLI --help/workspac
 
 CLI 是状态写入器和命令发现器，不是日常阅读负担。先判断用户要做什么，再用最小命令拿到现场；只有需要写状态、推进阶段、验证、关闭或归档时，才深入到具体命令。
 
-写状态优先走 CLI，不手改 YAML 真源。Markdown 解释层可由 AI 填写，但生命周期状态、引用关系、generated views 和归档移动必须由 CLI 或对应工具维护。
+写状态优先走 CLI，不手改 YAML 真源。CLI 同时生成 YAML 与 Markdown 时，命令成功只完成机器状态和正文骨架；除非用户明确只要骨架，AI 必须在同一轮根据真实现场补写同名 Markdown，不能留下全空章节后把记录视为完成。生命周期状态、引用关系、generated views 和归档移动仍必须由 CLI 或对应工具维护。
 
 默认路径：workspace context -> task context -> service context -> task package。`workspace context` 默认按项目分组全量列出服务名称，服务细节仍需点名。`task context` 支持任务名称、ID 或 `task.yaml` 路径；对用户回复优先名称，ID 主要用于命令和消歧。`service context` 参数是服务名；如果用户只给路径，先匹配/登记服务或只读检查路径。
 
@@ -91,6 +91,7 @@ codex-workbench task --help
 ## 写状态边界
 
 - requirement、task、evidence、validation、handoff、archive 状态必须走 CLI。
+- CLI 成对创建 YAML 与 Markdown 后，立即打开同名 Markdown，补写背景、过程、判断、结果和后续等实际需要的解释内容；事实不足时记录已知事实和待确认缺口，不编造、不机械复述 YAML。用户明确只要骨架时可以停止在模板状态。
 - 服务登记写入使用 `service add/update/delete`；项目分组使用 `--project` / `--clear-project`；没有对应 CLI 写入口时，不要静默手改 `services/registry.yaml`。
 - `CURRENT.md`、`docs/generated/index.md`、`docs/generated/recovery.md` 是生成视图，不能手改。
 - task 创建后发现影响面变化，用 `task impact-set`，不要静默改 `risk_level`。

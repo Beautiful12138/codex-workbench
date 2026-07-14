@@ -33,7 +33,7 @@ schema_version: "0.1"
 draft | ready | in_progress | verification_pending | blocked | done | obsolete
 ```
 
-`review`、`implementation`、`validation`、`handoff`、`blocked` 是维度，不是额外主阶段。
+`review`、`implementation`、`validation`、`handoff` 是维度，不是额外主阶段。`blocked` 是主阶段；其原因、阻塞方、恢复条件和恢复后阶段由 `blocked.*` 维度补充说明。
 
 ## task 归属
 
@@ -120,6 +120,43 @@ impact_profile:
 
 新窗口和 generated view 不能把推断升级成确认事实。
 
+## 事实来源优先级与冲突
+
+不同来源描述同一事实但结论冲突时，不能按更新时间静默覆盖。面向用户和文档的通用优先级是：
+
+```text
+人工明确确认 / 命令输出 / 真实文件状态
+> evidence
+> action note
+> requirement/task YAML
+> discovery
+> generated view
+> task next_step
+> AI 推断
+> 未确认假设
+```
+
+Python 实现使用 `FactSource` 和 `FACT_SOURCE_PRIORITY` 表达同一原则，并进一步区分任务进展状态与恢复提示：
+
+```text
+live_evidence
+> evidence
+> action_note
+> progress
+> requirement
+> discovery
+> generated_index
+> task_yaml_next_step
+> ai_inference
+> assumption
+```
+
+`live_evidence` 对应当前人工确认、真实命令输出或文件状态；`task_yaml_next_step` 只用于恢复提示，不能覆盖更高层级事实。无法按优先级安全裁决时，保留保守状态并报告冲突；具体恢复处理见 `docs/policies/recovery-and-concurrency.md`。
+
 ## Markdown 边界
 
 Markdown 是解释层，不是机器状态真源。CLI 可以生成标题骨架，但不应把 YAML 大段复读进 Markdown。任务正文由 Codex 根据真实场景填写。
+
+当 CLI 成对创建 YAML 和 Markdown 时，YAML 负责机器校验，Markdown 负责让用户和后续 Codex 理解真实现场。命令成功只表示两类文件已经建立；除非用户明确只要求骨架，Codex 应在同一轮补写 Markdown 的有效正文。事实不足时应区分已知事实与待确认缺口，不得编造；全空章节不能作为记录已完成的依据。
+
+`task.md` 的默认章节骨架由 `templates/work-products/task.md` 定义；章节可以按任务删改、合并或重命名，不另设 lifecycle policy 重复维护。
